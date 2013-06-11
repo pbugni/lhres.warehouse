@@ -6,8 +6,8 @@ Project setup.py defines entry points for the functions below.
 import os
 import tempfile
 
-from lhres.util.config import Config
-from lhres.warehouse.mirth_channel_transform import Options
+from pheme.util.config import Config
+from pheme.warehouse.mirth_channel_transform import Options
 
 CHANNELS = ('MBDS_hl7_obx_insert',
             'MBDS_Upload',

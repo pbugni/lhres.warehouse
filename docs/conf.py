@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# lhres documentation build configuration file, created by
+# pheme documentation build configuration file, created by
 # sphinx-quickstart on Thu May 30 11:59:31 2013.
 #
 # This file is execfile()d with the current directory set to its containing dir.
@@ -40,7 +40,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'lhres'
+project = u'pheme'
 copyright = u'2013, Paul Bugni'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -167,7 +167,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'lhresdoc'
+htmlhelp_basename = 'phemedoc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -186,7 +186,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'lhres.tex', u'lhres Documentation',
+  ('index', 'pheme.tex', u'pheme Documentation',
    u'Paul Bugni', 'manual'),
 ]
 
@@ -216,7 +216,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'lhres', u'lhres Documentation',
+    ('index', 'pheme', u'pheme Documentation',
      [u'Paul Bugni'], 1)
 ]
 
@@ -230,8 +230,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'lhres', u'lhres Documentation',
-   u'Paul Bugni', 'lhres', 'One line description of project.',
+  ('index', 'pheme', u'pheme Documentation',
+   u'Paul Bugni', 'pheme', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -251,7 +251,7 @@ texinfo_documents = [
 # -- Options for Epub output ---------------------------------------------------
 
 # Bibliographic Dublin Core info.
-epub_title = u'lhres'
+epub_title = u'pheme'
 epub_author = u'Paul Bugni'
 epub_publisher = u'Paul Bugni'
 epub_copyright = u'2013, Paul Bugni'

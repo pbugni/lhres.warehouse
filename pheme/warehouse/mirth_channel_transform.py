@@ -4,7 +4,7 @@ from optparse import OptionParser
 import os
 import sys
 
-from lhres.util.config import Config
+from pheme.util.config import Config
 
 usage = """%prog [options] src target_directory
 
@@ -15,7 +15,7 @@ provides a mechanims to alter an export for subsequent import.  Useful
 for altering details such as database name and user authentication.
 
 NB - values defined in the project configuration file will be used
-unless overwritten.  See py:module:`lhres.util.Config`
+unless overwritten.  See py:module:`pheme.util.Config`
 
 src              - 'source' mirth channel to transform
 target_directory - path where transformed file(s) will be written

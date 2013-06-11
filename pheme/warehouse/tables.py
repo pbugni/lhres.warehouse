@@ -33,8 +33,8 @@ from sqlalchemy.orm import mapper
 from sqlalchemy.orm import relation
 from sqlalchemy.orm import sessionmaker
 
-from lhres.util.config import Config
-from lhres.util.util import stringFields
+from pheme.util.config import Config
+from pheme.util.util import stringFields
 
 
 metadata = MetaData()

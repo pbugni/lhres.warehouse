@@ -1,17 +1,17 @@
 from datetime import datetime
 import unittest
 
-from lhres.util.config import Config
-from lhres.util.pg_access import AlchemyAccess
-from lhres.warehouse.tables import create_tables
-from lhres.warehouse.tables import HL7_Dx
-from lhres.warehouse.tables import HL7_Msh
-from lhres.warehouse.tables import HL7_Nte
-from lhres.warehouse.tables import HL7_Obr
-from lhres.warehouse.tables import HL7_Obx
-from lhres.warehouse.tables import HL7_RawMessage
-from lhres.warehouse.tables import HL7_Spm
-from lhres.warehouse.tables import HL7_Visit
+from pheme.util.config import Config
+from pheme.util.pg_access import AlchemyAccess
+from pheme.warehouse.tables import create_tables
+from pheme.warehouse.tables import HL7_Dx
+from pheme.warehouse.tables import HL7_Msh
+from pheme.warehouse.tables import HL7_Nte
+from pheme.warehouse.tables import HL7_Obr
+from pheme.warehouse.tables import HL7_Obx
+from pheme.warehouse.tables import HL7_RawMessage
+from pheme.warehouse.tables import HL7_Spm
+from pheme.warehouse.tables import HL7_Visit
 
 
 def setup_module():

@@ -1,10 +1,10 @@
-lhres.warehouse
+pheme.warehouse
 ===============
 
-Longitudinal Health Record for Enhanced Surveilance, Data Warehouse Module
+Public Health EHR Message Engine (PHEME), Data Warehouse Module
 
 Module responsible for creation and maintenance of the Data Warehouse used
-by the LHRES system.
+by the PHEME system.
 
 License
 -------

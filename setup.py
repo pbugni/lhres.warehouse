@@ -13,15 +13,15 @@ try:
 except IOError:
     README = ''
 
-setup(name='lhres.warehouse',
+setup(name='pheme.warehouse',
       version='13.05',
-      description="Data warehouse module for LHRES",
+      description="Data warehouse module for PHEME",
       long_description=README,
       license="BSD-3 Clause",
-      namespace_packages=['lhres'],
-      packages=['lhres.warehouse', ],
+      namespace_packages=['pheme'],
+      packages=['pheme.warehouse', ],
       include_package_data=True,
-      install_requires=['setuptools', 'lhres.util', 'lxml', 'psycopg2', 'SQLAlchemy'],
+      install_requires=['setuptools', 'pheme.util', 'lxml', 'psycopg2', 'SQLAlchemy'],
       setup_requires=['nose'],
       tests_require=tests_require,
       test_suite="nose.collector",
@@ -30,10 +30,10 @@ setup(name='lhres.warehouse',
                         },
       entry_points=("""
                     [console_scripts]
-                    create_warehouse_tables=lhres.warehouse.tables:main
-                    deploy_channels=lhres.warehouse.mirth_shell_commands:deploy_channels
-                    export_channels=lhres.warehouse.mirth_shell_commands:export_channels
-                    transform_channels=lhres.warehouse.mirth_shell_commands:transform_channels
-                    mirth_channel_transform=lhres.warehouse.mirth_channel_transform:main
+                    create_warehouse_tables=pheme.warehouse.tables:main
+                    deploy_channels=pheme.warehouse.mirth_shell_commands:deploy_channels
+                    export_channels=pheme.warehouse.mirth_shell_commands:export_channels
+                    transform_channels=pheme.warehouse.mirth_shell_commands:transform_channels
+                    mirth_channel_transform=pheme.warehouse.mirth_channel_transform:main
                     """),
 )
