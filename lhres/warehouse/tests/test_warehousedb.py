@@ -20,10 +20,10 @@ def setup_module():
     if c.get('general', 'in_production'):  # pragma: no cover
         raise RuntimeError("DO NOT run destructive test on production system")
 
-    param = lambda v: c.get('warehouse', v)
-    create_tables(param('create_table_user'),
-                  param('create_table_password'),
-                  param('database'),
+    cfg_value = lambda v: c.get('warehouse', v)
+    create_tables(cfg_value('create_table_user'),
+                  cfg_value('create_table_password'),
+                  cfg_value('database'),
                   enable_delete=True)
 
 
@@ -33,11 +33,11 @@ class testSqlAObjects(unittest.TestCase):
     """
     def setUp(self):
         c = Config()
-        param = lambda v: c.get('warehouse', v)
-        self.alchemy = AlchemyAccess(database=param('database'),
+        cfg_value = lambda v: c.get('warehouse', v)
+        self.alchemy = AlchemyAccess(database=cfg_value('database'),
                                      host='localhost',
-                                     user=param('database_user'),
-                                     password=param('database_password'))
+                                     user=cfg_value('database_user'),
+                                     password=cfg_value('database_password'))
         self.session = self.alchemy.session
 
 

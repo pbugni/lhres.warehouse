@@ -509,10 +509,13 @@ mapper(FullMessage, hl7Msh_table,
 def create_tables(user, password, dbname, enable_delete=False):
     """Create the warehouse database tables.
 
+    NB the config [warehouse]database_user is granted SELECT and 
+    INSERT permissions (plus DELET if enable_delete is set).
+
     :param user: database user with table creation grants
     :param password: the database password
     :param dbname: the database name to populate
-    :param enable_delete: testing hook, override for data deletion
+    :param enable_delete: testing hook, override for testing needs
 
     """
     engine = create_engine("postgresql://%s:%s@localhost/%s" %\
@@ -520,26 +523,35 @@ def create_tables(user, password, dbname, enable_delete=False):
     metadata.drop_all(bind=engine)
     metadata.create_all(bind=engine)
 
+    def bless_user(user):
+        engine.execute("""BEGIN; GRANT SELECT, INSERT, UPDATE %(delete)s ON
+                       hl7_raw_message,
+                       hl7_msh,
+                       hl7_visit,
+                       hl7_dx,
+                       hl7_obr,
+                       hl7_obx,
+                       hl7_nte,
+                       hl7_spm TO %(user)s;
+                       COMMIT;""" % {'delete': ", DELETE" 
+                                     if enable_delete else '',
+                                     'user': user});
+        # Sequences also require UPDATE
+        engine.execute("""BEGIN; GRANT SELECT, UPDATE ON
+                       hl7_dx_hl7_dx_id_seq,
+                       hl7_msh_hl7_msh_id_seq,
+                       hl7_obr_hl7_obr_id_seq,
+                       hl7_obx_hl7_obx_id_seq,
+                       hl7_nte_hl7_nte_id_seq,
+                       hl7_spm_hl7_spm_id_seq,
+                       hl7_raw_message_hl7_raw_message_id_seq,
+                       hl7_visit_hl7_visit_id_seq TO %(user)s; COMMIT;""" %
+                       {'user': user});
+
     # Bless the mirth user with the minimal set of privileges
     # Mirth only SELECTs and INSERTs at this time
-    config = Config()
-    user = config.get('warehouse', 'database_user')
-    engine.execute("""BEGIN; GRANT SELECT, INSERT, UPDATE %(delete)s ON
-                   hl7_raw_message, hl7_msh, hl7_visit, hl7_dx,
-                   hl7_obr, hl7_obx, hl7_nte, hl7_spm TO %(user)s;
-                   COMMIT;""" % {'delete': ", DELETE" if enable_delete else '',
-                                 'user': user});
-    # Sequences also require UPDATE
-    engine.execute("BEGIN; GRANT SELECT, UPDATE ON " \
-                       "hl7_dx_hl7_dx_id_seq, " \
-                       "hl7_msh_hl7_msh_id_seq, "\
-                       "hl7_obr_hl7_obr_id_seq, "\
-                       "hl7_obx_hl7_obx_id_seq, "\
-                       "hl7_nte_hl7_nte_id_seq, "\
-                       "hl7_spm_hl7_spm_id_seq, "\
-                       "hl7_raw_message_hl7_raw_message_id_seq, "\
-                       "hl7_visit_hl7_visit_id_seq TO %(user)s; COMMIT;"\
-                       % {'user': user});
+
+    bless_user(Config().get('warehouse', 'database_user'))
 
 
 def main():  # pragma: no cover
