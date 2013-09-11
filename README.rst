@@ -11,8 +11,8 @@ schema for consumption by other PHEME modules.
 Requirements
 ------------
 
-* `Mirth Connect`_ Install Mirth Connect, provide admin with a secure
-  password and set this password in
+* Install `Mirth Connect`_ and provide the ``admin`` user with a
+  secure password and set this password in
   ``$MIRTH_HOME/conf/mirth-cli-config.properties`` for
   ``pheme.warehouse`` command line tools proper function.
 * `PostgreSQL`_
@@ -39,14 +39,14 @@ Then clone and build this module::
     ./setup.py develop
 
 A pheme config file (see ``pheme.util.config``) must specify where
-  `Mirth Connect` was installed::
+`Mirth Connect` was installed::
 
     [mirth]
     mirth_home=/opt/mirth/current
 
 Transformation of the mirth channels uses values in the pheme config
 file.  (NB for the tests to pass, ``create_table_user`` must be the
-same as ``database_user``, however for security resons, this should
+same as ``database_user``, however for security reasons, this should
 not be the case on production systems) Values needed include::
 
     [mirth]
@@ -90,7 +90,7 @@ pheme config file (using the appropriate value for username) such as::
 Tests
 -----
 
-As this test suite destructively intereacts with the database, it is
+As this test suite destructively interacts with the database, it is
 recommended that a test virtual machine be used for testing.  There is
 a safeguard in place that prevents running the tests if the pheme
 config file has ``in_production`` set to prevent accidental data
@@ -104,7 +104,7 @@ created for successful test execution::
 
 A significant portion of the testing for this module relies on Mirth
 processing, which is runtime expensive.  To make feature testing
-managable, hooks exist to persist an rerun a batch of files through
+manageable, hooks exist to persist an rerun a batch of files through
 Mirth.  First run requires this processing::
 
   process_testfiles_via_mirth
