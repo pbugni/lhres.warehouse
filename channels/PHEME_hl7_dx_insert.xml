@@ -1,0 +1,171 @@
+<channel>
+  <id>96fea321-defb-42a1-b6b2-74298bcc6e03</id>
+  <name>PHEME_hl7_dx_insert</name>
+  <description>Channel listener - persists selected data from HL/7 DG1 segments to warehouse hl7_dx table. 
+
+Inbound message must include:
+  - Foreign key `hl7_msh_id` in 'ZID-1.2'
+  - message_control_id in 'MSH-10.1'
+</description>
+  <enabled>true</enabled>
+  <version>2.2.1.5861</version>
+  <lastModified>
+    <time>1376519621859</time>
+    <timezone>US/Pacific</timezone>
+  </lastModified>
+  <revision>19</revision>
+  <sourceConnector>
+    <name>sourceConnector</name>
+    <properties>
+      <property name="DataType">Channel Reader</property>
+      <property name="responseValue">None</property>
+    </properties>
+    <transformer>
+      <steps>
+        <step>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Pull ids from inbound xml</name>
+          <script>var hl7_msh_id = msg['ZID']['ZID.1']['ZID.1.2'].toString()
+var message_control_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+
+channelMap.put('hl7_msh_id', hl7_msh_id)
+channelMap.put('message_control_id', message_control_id)</script>
+          <type>JavaScript</type>
+          <data class="map">
+            <entry>
+              <string>Script</string>
+              <string>var hl7_msh_id = msg['ZID']['ZID.1']['ZID.1.2'].toString()
+var message_control_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+
+channelMap.put('hl7_msh_id', hl7_msh_id)
+channelMap.put('message_control_id', message_control_id)</string>
+            </entry>
+          </data>
+        </step>
+      </steps>
+      <inboundTemplate encoding="base64"/>
+      <outboundTemplate encoding="base64"/>
+      <inboundProtocol>XML</inboundProtocol>
+      <outboundProtocol>HL7V2</outboundProtocol>
+      <inboundProperties>
+        <property name="stripNamespaces">false</property>
+      </inboundProperties>
+      <outboundProperties>
+        <property name="convertLFtoCR">true</property>
+        <property name="handleRepetitions">false</property>
+        <property name="handleSubcomponents">false</property>
+        <property name="stripNamespaces">true</property>
+        <property name="useStrictParser">false</property>
+        <property name="useStrictValidation">false</property>
+      </outboundProperties>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+    <transportName>Channel Reader</transportName>
+    <mode>SOURCE</mode>
+    <enabled>true</enabled>
+    <version>2.2.1.5861</version>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>hl7_dx database insert</name>
+      <properties>
+        <property name="DataType">JavaScript Writer</property>
+        <property name="host">sink</property>
+        <property name="script">var stmt = new java.lang.StringBuilder()
+stmt.append("BEGIN;\n")
+// This writes out a row for every DG1 stmt picked up in the transformer
+for (var i=0; i&lt; $('dg1Array').length(); i++) {
+  var dg1 = $('dg1Array')[i];
+  var rank = dg1['DG1.1']['DG1.1.1'];
+  var dx_code = dg1['DG1.3']['DG1.3.1'];
+  var dx_description = dg1['DG1.3']['DG1.3.2'].toString();
+  var dx_type = dg1['DG1.6']['DG1.6.1'];
+
+  stmt.append("INSERT INTO hl7_dx (rank, dx_code, dx_description, " +
+	"dx_type, hl7_msh_id)");
+  dx_description = dx_description.replace(/'/g, "''");
+  dx_description = dx_description.replace(/\\/g, "\\\\");
+  stmt.append("VALUES (" + rank + ",'" + dx_code +"','"+ dx_description +
+	"','"+ dx_type +"'," + parseInt(channelMap.get("hl7_msh_id")) +");\n")
+}
+
+var dbConn = DatabaseConnectionFactory.createDatabaseConnection('org.logicalcobwebs.proxool.ProxoolDriver',
+    'proxool.example:org.postgresql.Driver:jdbc:postgresql://localhost:5432/warehouse','user','password');
+try {
+  stmt.append("COMMIT;")
+  dbConn.executeUpdate(stmt)
+} catch (e) {
+  logger.error("Exception caught on hl7_dx insert")
+  logger.error("Failed stmt: " + stmt)
+  logger.error("message_control_id: " + $('message_control_id'))
+  logger.error(e)
+  logger.error("Executing ROLLBACK...")
+  dbConn.executeUpdate("ROLLBACK;")
+} finally {
+  dbConn.close();
+}</property>
+      </properties>
+      <transformer>
+        <steps>
+          <step>
+            <sequenceNumber>0</sequenceNumber>
+            <name>dg1Array</name>
+            <script>var dg1Array = new XMLList(msg..DG1)
+channelMap.put("dg1Array", dg1Array)</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var dg1Array = new XMLList(msg..DG1)
+channelMap.put("dg1Array", dg1Array)</string>
+              </entry>
+            </data>
+          </step>
+        </steps>
+        <inboundTemplate encoding="base64"/>
+        <outboundTemplate encoding="base64"/>
+        <inboundProtocol>HL7V2</inboundProtocol>
+        <outboundProtocol>HL7V2</outboundProtocol>
+        <inboundProperties>
+          <property name="convertLFtoCR">true</property>
+          <property name="handleRepetitions">false</property>
+          <property name="handleSubcomponents">false</property>
+          <property name="stripNamespaces">true</property>
+          <property name="useStrictParser">false</property>
+          <property name="useStrictValidation">false</property>
+        </inboundProperties>
+        <outboundProperties/>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+      <transportName>JavaScript Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+  </destinationConnectors>
+  <properties>
+    <property name="clearGlobalChannelMap">true</property>
+    <property name="dont_store_filtered">false</property>
+    <property name="encryptData">false</property>
+    <property name="error_messages_only">false</property>
+    <property name="initialState">started</property>
+    <property name="max_message_age">3</property>
+    <property name="store_messages">true</property>
+    <property name="synchronous">true</property>
+    <property name="transactional">false</property>
+  </properties>
+  <preprocessingScript>// Modify the message variable below to pre process data
+return message;</preprocessingScript>
+  <postprocessingScript>// This script executes once after a message has been processed
+return;</postprocessingScript>
+  <deployScript>// This script executes once when the channel is deployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</deployScript>
+  <shutdownScript>// This script executes once when the channel is undeployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</shutdownScript>
+</channel>

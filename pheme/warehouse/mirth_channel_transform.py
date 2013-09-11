@@ -1,109 +1,56 @@
 #!/usr/bin/env python
 from lxml import etree
-from optparse import OptionParser
 import os
 import sys
 
 from pheme.util.config import Config
 
-usage = """%prog [options] src target_directory
 
-Transform an exported mirth channel to another channel for importing.
+def transformer_factory(tree, options):
+    """Return appropriate channel transform agent for channel
 
-Mirth channels can be easily exported in XML format.  This utility
-provides a mechanims to alter an export for subsequent import.  Useful
-for altering details such as database name and user authentication.
+    Attempts are made to use the CommonTransferAgent for all channels,
+    but some exceptions exist.  In exceptional cases, use the channel
+    name to determine the specialized class for performing the
+    transformation.
 
-NB - values defined in the project configuration file will be used
-unless overwritten.  See py:module:`pheme.util.Config`
+    :param tree: parsed channel in etree instance
 
-src              - 'source' mirth channel to transform
-target_directory - path where transformed file(s) will be written
-
-Try `%prog --help` for more information.
-"""
-
-class Options(object):
-    """Gather configuration and runtime parameters """
-
-    def __init__(self):
-        config = Config()
-        self.db = config.get('warehouse', 'database', '')
-        self.user = config.get('warehouse', 'database_user', '')
-        self.password = config.get('warehouse', 'database_password', '')
-        self.input_dir = config.get('warehouse', 'input_dir', '')
-        self.output_dir = config.get('warehouse', 'output_dir', '')
-        self.error_dir = config.get('warehouse', 'error_dir', '')
- 
-    def processArgs(self, argv):
-        """ Process any optional arguments and possitional parameters
-        """
-        parser = OptionParser(usage=usage)
-        parser.add_option("-d", "--database", dest="db", 
-                          default=self.db, help="name of database")
-        parser.add_option("-u", "--user", dest="user",
-                          default=self.user, help="database user")
-        parser.add_option("-p", "--password", dest="password",
-                          default=self.password,
-                          help="database password")
-        parser.add_option("--input_dir", dest="input_dir",
-                          default=self.input_dir,
-                          help="filesystem directory for channel to poll")
-        parser.add_option("--output_dir", dest="output_dir",
-                          default=self.output_dir,
-                          help="filesystem directory for channel output")
-        parser.add_option("--error_dir", dest="error_dir",
-                          default=self.error_dir,
-                          help="filesystem directory for channel errors")
-        
-        (options, args) = parser.parse_args()
-        if len(args) != 2:
-            parser.error("incorrect number of arguments")
-    
-        self.src = args[0]
-        if not os.access(self.src, os.R_OK):
-            parser.error("Can't open source file: '%s'" % self.src)
-
-        self.target_dir = args[1]
-        if not os.access(self.target_dir, os.W_OK):
-            parser.error("Can't write to target dir: %s" % self.target_dir)
-
-        self.db = parser.values.db
-        self.user = parser.values.user
-        self.password = parser.values.password
-
-    def transformer(self):
-        """Returns the transformer with config/user options"""
-        t = Transform(src=self.src,
-                      target_dir=self.target_dir)
-        # Communicate user options
-        for attr in ('db', 'user', 'password', 'input_dir', 
-                     'output_dir', 'error_dir'):
-            setattr(t, attr, getattr(self, attr))
-        return t
+    """
+    channel_name = tree.xpath("/channel/name")
+    if channel_name[0].text == 'PHEME_http_receiver':
+        return PHEME_http_receiverTransferAgent(tree, options)
+    return CommonTransferAgent(tree, options)
 
 
-class Transform(object):
-    """Transform a mirth channel as directed """
+class CommonTransferAgent(object):
+    def __init__(self, channel, options):
+        self.tree = channel
+        self.options = options
 
-    def __init__(self, src, target_dir):
-        self.src = src
-        self.target_dir = target_dir
+    def transform(self):
+        """Perform the transformation"""
+        # Adjust the necessary values in the channel source
+        srcProps = self.tree.xpath(
+            "/channel/sourceConnector/properties")
+        assert(len(srcProps) == 1)
+        self._adjust_source_connector(srcProps[0])
 
-    def _targetFile(self):
-        """Returns an open file handle ready for writes"""
-        basename = os.path.basename(self.src)
-        filename = os.path.join(self.target_dir, basename)
-        return open(filename, 'w')
+        srcFilters = self.tree.xpath(
+            "/channel/sourceConnector/filter")
+        map(self._adjust_source_filter, srcFilters)
 
-    def __call__(self):
-        """Perform standard transformer steps"""
-        self.parseSourceDocument()
-        self.transform()
+        srcTransformers = self.tree.xpath(
+            "/channel/sourceConnector/transformer")
+        map(self._adjust_source_transformer, srcTransformers)
 
-    def parseSourceDocument(self):
-        """Parse the source xml"""
-        self.tree = etree.parse(self.src)
+        # Adjust the necessary values in all the destinations
+        destinations = self.tree.xpath(
+            "/channel/destinationConnectors/connector/properties")
+        map(self._adjust_destination, destinations)
+
+        # Return the transformed channel
+        return self.tree
 
     def _adjust_source_connector(self, srcProps):
         #the same source_connector element is used for all types
@@ -117,18 +64,18 @@ class Transform(object):
         
         for prop in srcProps.iter(tag='property'):
             if prop.attrib['name'] == 'host':
-                prop.text = self.input_dir
+                prop.text = self.options.input_dir
             if prop.attrib['name'] == 'moveToDirectory':
-                prop.text = self.output_dir
+                prop.text = self.options.output_dir
             if prop.attrib['name'] == 'moveToErrorDirectory':
-                prop.text = self.error_dir
+                prop.text = self.options.error_dir
 
     def _adjust_destination(self, destProps):
         for prop in destProps.iter(tag='property'):
             if prop.attrib['name'] == 'username':
-                prop.text = self.user
+                prop.text = self.options.user
             if prop.attrib['name'] == 'password':
-                prop.text = self.password
+                prop.text = self.options.password
             if prop.attrib['name'] == 'URL':
                 prop.text = self._adjust_connection_URL(prop.text)
             if prop.attrib['name'] == 'script' and prop.text:
@@ -170,7 +117,7 @@ class Transform(object):
         Returns adjusted connection URL
 
         """
-        dbname = self.db
+        dbname = self.options.db
         parts = text.split('/')
 
         # Preserve the quotes if present
@@ -206,46 +153,55 @@ class Transform(object):
         paramsStart = text.index("(", funcStart)
         params = text[paramsStart+1:paramsEnd].split(",")
         params[1] = self._adjust_connection_URL(params[1])
-        params[2] = "'" + self.user + "'"
-        params[3] = "'" + self.password + "'"
+        params[2] = "'" + self.options.user + "'"
+        params[3] = "'" + self.options.password + "'"
 
         # Reassemble the pieces
         return text[:paramsStart+1] + ",".join(params) + text[paramsEnd:]
 
-    def transform(self):
-        """Perform the transformation"""
-        
-        # Adjust the necessary values in the channel source
-        srcProps = self.tree.xpath(
-            "/channel/sourceConnector/properties")
-        assert(len(srcProps) == 1)
-        self._adjust_source_connector(srcProps[0])
 
-        srcFilters = self.tree.xpath(
-            "/channel/sourceConnector/filter")
-        map(self._adjust_source_filter, srcFilters)
+class PHEME_http_receiverTransferAgent(CommonTransferAgent):
+    def _adjust_destination(self, destProps):
+        """PHEME_http_receiver specialized destination transformer
 
-        srcTransformers = self.tree.xpath(
-            "/channel/sourceConnector/transformer")
-        map(self._adjust_source_transformer, srcTransformers)
+        Use the value of "input_dir" for the destination's output,
+        as this channel drops files inplace for the other to pick up.
+        """
+        super(PHEME_http_receiverTransferAgent, self).\
+            _adjust_destination(destProps)
+        for prop in destProps.iter(tag='property'):
+            if prop.attrib['name'] == 'host':
+                prop.text = self.options.input_dir
 
-        # Adjust the necessary values in all the destinations
-        destinations = self.tree.xpath(
-            "/channel/destinationConnectors/connector/properties")
-        map(self._adjust_destination, destinations)
+
+class TransformManager(object):
+    """Transform a mirth channel as directed
+
+    Manages the transformation process, parsing, delegating the
+    transformation work to the appropriate transform agent and writing
+    out the results.
+
+    """
+
+    def __init__(self, src, target_dir, options):
+        self.src = src
+        self.target_dir = target_dir
+        self.options = options
+
+    def _targetFile(self):
+        """Returns an open file handle ready for writes"""
+        basename = os.path.basename(self.src)
+        filename = os.path.join(self.target_dir, basename)
+        return open(filename, 'w')
+
+    def __call__(self):
+        """Perform standard transformer steps"""
+        self.tree = etree.parse(self.src)
+
+        agent = transformer_factory(self.tree, self.options)
+        self.tree = agent.transform()
 
         # Write out the finished product
         file = self._targetFile()
         self.tree.write(file, pretty_print=False)
-        print 'wrote new channel export:', file.name
-
-
-def main():
-    options = Options()
-    options.processArgs(sys.argv[1:])
-    
-    transformer = options.transformer()
-    transformer()
-
-if __name__ == '__main__':
-    main()
+        print 'wrote transformed channel:', file.name

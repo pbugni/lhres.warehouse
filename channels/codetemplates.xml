@@ -1,0 +1,44 @@
+<list>
+  <codeTemplate>
+    <id>48cfb470-a14c-41e4-b20d-a79756f5461b</id>
+    <name>quoteOrNull</name>
+    <tooltip>SQL Quote string if valid for SQL insertion and wrap in single quotes, otherwise return null to avoid misleading empty strings in database</tooltip>
+    <code>
+function quoteOrNull(string) {
+    // Null is returned for empty string (avoid misleading empties in db)
+    // Embedded quotes (within the string) are SQL quoted.
+    // Backslashes are quoted to preserve and not quote others.
+    // Returns string surrounded with single quotes for SQL insertion
+    if (!string) {
+        return null
+    }
+    string = new String(string).replace(/\\/g, &quot;\\\\&quot;).replace(/&apos;/g, &quot;&apos;&apos;&quot;)
+    return &quot;&apos;&quot; + string + &quot;&apos;&quot;
+}</code>
+    <type>FUNCTION</type>
+    <scope>2</scope>
+    <version>2.2.1.5861</version>
+  </codeTemplate>
+  <codeTemplate>
+    <id>e9bf590f-3899-4416-923c-1a56f4d2bece</id>
+    <name>datetimeForSQL</name>
+    <tooltip>returns formatted datetime string.  translates yyyyMMddHHmm[ss] to one SQL will accept: yyyy-MM-dd HH:mm:ss.  Returns null otherwise</tooltip>
+    <code>function datetimeForSQL(dt){
+    // Given a yyyyMMddHHmm[ss] string - produce a date time format friendly string.
+    // returns null in any other case - logs warning if it looks wonky
+    if (!dt) {
+        return null
+    }
+    if (dt.length == 12) {
+        return DateUtil.convertDate(&quot;yyyyMMddHHmm&quot;, &quot;yyyy-MM-dd HH:mm:00&quot;, dt)
+    } else if (dt.length == 14) {
+        return DateUtil.convertDate(&quot;yyyyMMddHHmmss&quot;, &quot;yyyy-MM-dd HH:mm:ss&quot;, dt)
+	}
+    logger.error(&quot;Unable to format datetime string &quot; + dt)
+    return null
+}</code>
+    <type>FUNCTION</type>
+    <scope>3</scope>
+    <version>2.2.1.5861</version>
+  </codeTemplate>
+</list>

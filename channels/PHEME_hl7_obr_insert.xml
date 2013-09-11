@@ -1,0 +1,472 @@
+<channel>
+  <id>7edfc211-9958-4353-80f3-9954373f8fb8</id>
+  <name>PHEME_hl7_obr_insert</name>
+  <description>Channel listener - persists selected data from HL/7 OBR, OBX, NTE and SPM segments to warehouse hl7_obr, hl7_obx, hl7_nte and hl7_spm tables. 
+
+Inbound message must include:
+  - Foreign key `hl7_msh_id` in 'ZID-1.2'
+  - message_control_id in 'MSH-10.1'
+</description>
+  <enabled>true</enabled>
+  <version>2.2.1.5861</version>
+  <lastModified>
+    <time>1378408996141</time>
+    <timezone>US/Pacific</timezone>
+  </lastModified>
+  <revision>20</revision>
+  <sourceConnector>
+    <name>sourceConnector</name>
+    <properties>
+      <property name="DataType">Channel Reader</property>
+      <property name="responseValue">None</property>
+    </properties>
+    <transformer>
+      <steps>
+        <step>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Pull ids from inbound xml</name>
+          <script>var hl7_msh_id = msg['ZID']['ZID.1']['ZID.1.2'].toString()
+var message_control_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+
+channelMap.put('hl7_msh_id', hl7_msh_id)
+channelMap.put('message_control_id', message_control_id)</script>
+          <type>JavaScript</type>
+          <data class="map">
+            <entry>
+              <string>Script</string>
+              <string>var hl7_msh_id = msg['ZID']['ZID.1']['ZID.1.2'].toString()
+var message_control_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+
+channelMap.put('hl7_msh_id', hl7_msh_id)
+channelMap.put('message_control_id', message_control_id)</string>
+            </entry>
+          </data>
+        </step>
+      </steps>
+      <inboundTemplate encoding="base64"/>
+      <outboundTemplate encoding="base64"/>
+      <inboundProtocol>XML</inboundProtocol>
+      <outboundProtocol>XML</outboundProtocol>
+      <inboundProperties>
+        <property name="stripNamespaces">false</property>
+      </inboundProperties>
+      <outboundProperties>
+        <property name="stripNamespaces">true</property>
+      </outboundProperties>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+    <transportName>Channel Reader</transportName>
+    <mode>SOURCE</mode>
+    <enabled>true</enabled>
+    <version>2.2.1.5861</version>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>HL7_OBR_OBX</name>
+      <properties>
+        <property name="DataType">Database Writer</property>
+        <property name="URL">jdbc:postgresql://localhost:5432/warehouse</property>
+        <property name="driver">org.postgresql.Driver</property>
+        <property name="host">query</property>
+        <property name="password">password</property>
+        <property name="query"/>
+        <property name="script">// This writes out a row for every OBR and OBX stmt picked up in the transformer
+// See also the HL7_OBX_NO_OBR destination, used for ADT messages containing OBX segments
+
+var dbConn = DatabaseConnectionFactory.createDatabaseConnection('org.logicalcobwebs.proxool.ProxoolDriver',
+    'proxool.example:org.postgresql.Driver:jdbc:postgresql://localhost:5432/warehouse','user','password');
+
+var stmt = new java.lang.StringBuilder()
+stmt.append("BEGIN; \n")
+
+for (var i=0; i&lt; $('labArray').length; i++) {
+  var group = $('labArray')[i];
+
+  var result = dbConn.executeCachedQuery("SELECT nextval('hl7_obr_hl7_obr_id_seq')")
+  result.first()
+  var next_id = result.getInt(1)
+
+  stmt.append("INSERT INTO hl7_obr (hl7_obr_id, loinc_code, loinc_text, alt_text, ")
+  stmt.append("observation_datetime, status, report_datetime, specimen_source, hl7_msh_id, ")
+  stmt.append("filler_order_no, coding, alt_code, alt_coding)")
+  stmt.append("VALUES (" + next_id + ",")
+  stmt.append(group.obr.loinc_code +","+ group.obr.loinc_text + "," + group.obr.alt_text + ",")
+  stmt.append(group.obr.observation_datetime + "," + group.obr.status + ",")
+  stmt.append(group.obr.report_datetime + "," + group.obr.specimen_source + ",")
+  stmt.append(parseInt(channelMap.get("hl7_msh_id")) + "," + group.obr.filler_order_no + ",")
+  stmt.append(group.obr.coding + "," + group.obr.alt_code + "," + group.obr.alt_coding + ");\n")
+
+  // Any number of OBX rows will exist for the OBR inserted above.
+  for (var j=0; j&lt; group.obxArray.length; j++) {
+      var obx = group.obxArray[j]
+
+      // Need to prefetch the hl7_obx_id in case NTE segments are present
+      var result = dbConn.executeCachedQuery("SELECT nextval('hl7_obx_hl7_obx_id_seq')")
+      result.first()
+      var next_obx_id = result.getInt(1)
+
+      stmt.append("INSERT INTO hl7_obx (hl7_obx_id, hl7_obr_id, value_type, observation_id, observation_text, ")
+      stmt.append("observation_result, units, result_status, observation_datetime, performing_lab_code, ")
+      stmt.append("coding, alt_id, alt_text, alt_coding, reference_range, abnorm_id, abnorm_text, ")
+      stmt.append("abnorm_coding, alt_abnorm_id, alt_abnorm_text, alt_abnorm_coding, ")
+      stmt.append("sequence, hl7_msh_id)")
+      stmt.append("VALUES ("+ next_obx_id +","+ next_id +","+ obx.value_type +",")
+      stmt.append(obx.observation_id +","+ obx.observation_text +",")
+      stmt.append(obx.observation_result +","+ obx.units +","+ obx.result_status +",")
+      stmt.append(obx.observation_datetime +","+ obx.performing_lab_code +",")
+      stmt.append(obx.coding +","+ obx.alt_id +","+ obx.alt_text +","+ obx.alt_coding +",") 
+      stmt.append(obx.reference_range +","+ obx.abnorm_id +","+ obx.abnorm_text +",")
+      stmt.append(obx.abnorm_coding +","+ obx.alt_abnorm_id +","+ obx.alt_abnorm_text +",")
+      stmt.append(obx.alt_abnorm_coding +",")
+      stmt.append(obx.sequence +","+ parseInt(channelMap.get("hl7_msh_id")) +");\n")
+
+      // Store any OBX related NTE (note) statements.
+      for (var n=0; n&lt; obx.nteArray.length; n++) {
+          var nte = obx.nteArray[n]
+          stmt.append("INSERT INTO hl7_nte (sequence_number, note, hl7_obx_id) ")
+          stmt.append("VALUES (" + nte.sequence +","+ nte.note +","+ next_obx_id + ");\n")
+      }
+  }
+
+  // Store any OBR related NTE (note) statements.
+  for (var n=0; n&lt; group.nteArray.length; n++) {
+      var nte = group.nteArray[n]
+      stmt.append("INSERT INTO hl7_nte (sequence_number, note, hl7_obr_id) ")
+      stmt.append("VALUES (" + nte.sequence +","+ nte.note +","+ next_id + ");\n")
+  }
+
+  // Store any related SPM (specimen) statements.
+  for (var k=0; k&lt; group.spmArray.length; k++) {
+      var spm = group.spmArray[k]
+      stmt.append("INSERT INTO hl7_spm (hl7_obr_id, id, code, description) ")
+      stmt.append("VALUES ("+ next_id +","+ spm.id +","+ spm.code +","+ spm.description +");\n")
+  }
+}
+
+try {
+  stmt.append("COMMIT;\n")
+  dbConn.executeUpdate(stmt)
+} catch (e)  {
+  logger.error("Exception caught on hl7_obr insert")
+  logger.error("Failed stmt: " + stmt)
+  logger.error("message_control_id: " + $('message_control_id'))
+  logger.error(e)
+  logger.error("Executing ROLLBACK...")
+  dbConn.executeUpdate("ROLLBACK;")
+} finally {
+  dbConn.close();
+}</property>
+        <property name="useScript">1</property>
+        <property name="username">user</property>
+      </properties>
+      <transformer>
+        <steps>
+          <step>
+            <sequenceNumber>0</sequenceNumber>
+            <name>extractData</name>
+            <script>function subelement(string, index) {
+    // Need to parse out the subelement using the '&amp;' delimiter
+    // For example a call subelement('&amp;&amp;&amp;BLUD&amp;Blood&amp;L', 3) returns 'BLUD'
+    // NB this is 0 indexed, unlike segment references.
+    if (string.length &lt; index) {
+        return null
+    }
+	elements = string.split('&amp;')
+	if (elements.length &gt;= index) {
+        return "'" + elements[index] + "'"
+    }
+    return null
+}
+
+var labArray = new Array()
+var group = null
+var obx = null
+var nteArray = null
+
+// We are forced to iterate through all segments in the message
+// in order to maintain the OBR:OBX association.
+
+// The NTE associations are even trickier, as they may be associated
+// with EITHER the preceding OBX or OBR.
+
+// Build up an array of lab data. Each 'group' consists of:
+//  - one obr (in attribute 'obr')
+//  - zero or more obx (in attribute 'obxArray')
+//  - zero or more spm (in attribute 'spmArray')
+//  - zero or more nte (in attribute 'nteArray')
+
+for each (segment in msg.children()){
+
+    if (segment.name() == "OBR") {
+        // Start of new group.
+        group = new Object()
+        group.obr = new Object()
+        group.obxArray = new Array()
+        group.spmArray = new Array()
+        labArray.push(group)
+
+        // placeholder should any NTE segments follow 
+        // belonging to this OBR
+        nteArray = new Array()
+        group.nteArray = nteArray
+        
+        // Store interesting bits
+        group.obr.loinc_code = quoteOrNull(segment['OBR.4']['OBR.4.1'].toString())
+        group.obr.loinc_text = quoteOrNull(segment['OBR.4']['OBR.4.2'].toString())
+        group.obr.alt_text = quoteOrNull(segment['OBR.4']['OBR.4.5'].toString())
+        group.obr.observation_datetime = quoteOrNull(datetimeForSQL(segment['OBR.7']['OBR.7.1'].toString()))
+        group.obr.status = quoteOrNull(segment['OBR.25']['OBR.25.1'].toString())
+		if (group.obr.status != null &amp;&amp; group.obr.status.length &gt; 3) {
+			// Known problem from INHS - bad mapping 'IP' should have been 'I'
+			if (group.obr.status == "'IP'") {
+				group.obr.status = "'I'"
+			} else {
+				logger.error("obr.status too long:" + group.obr.status)
+				group.obr.status = null
+			}
+		}
+        group.obr.report_datetime = quoteOrNull(datetimeForSQL(segment['OBR.22']['OBR.22.1'].toString()))
+        group.obr.specimen_source = subelement(segment['OBR.15']['OBR.15.1'].toString(), 3)
+        group.obr.filler_order_no = quoteOrNull(segment['OBR.3']['OBR.3.1'].toString())
+        group.obr.coding = quoteOrNull(segment['OBR.4']['OBR.4.3'].toString())
+        group.obr.alt_code = quoteOrNull(segment['OBR.4']['OBR.4.4'].toString())
+        group.obr.alt_coding = quoteOrNull(segment['OBR.4']['OBR.4.6'].toString())
+    }
+
+    if (segment.name() == "OBX") {
+        obx = new Object()
+
+        // placeholder should any NTE segments follow 
+        // belonging to this OBX
+        nteArray = new Array()
+        obx.nteArray = nteArray
+
+        // Store interesting bits
+        obx.value_type = quoteOrNull(segment['OBX.2']['OBX.2.1'].toString())
+        obx.observation_id = quoteOrNull(segment['OBX.3']['OBX.3.1'].toString())
+        obx.observation_text = quoteOrNull(segment['OBX.3']['OBX.3.2'].toString())
+        obx.observation_result = quoteOrNull(segment['OBX.5'].toString())
+        if (segment['OBX.6']['OBX.6.5'].toString().length &gt; 0) {
+            obx.units = quoteOrNull(segment['OBX.6']['OBX.6.5'].toString())
+        } else {
+            obx.units = quoteOrNull(segment['OBX.6']['OBX.6.2'].toString())
+        }
+        obx.result_status = quoteOrNull(segment['OBX.11']['OBX.11.2'].toString())
+        obx.observation_datetime = quoteOrNull(datetimeForSQL(segment['OBX.14']['OBX.14.1'].toString())) 
+        obx.performing_lab_code = quoteOrNull(segment['OBX.15']['OBX.15.4'].toString())
+        obx.sequence = quoteOrNull(segment['OBX.4']['OBX.4.1'].toString())
+        obx.coding = quoteOrNull(segment['OBX.3']['OBX.3.3'].toString())
+        obx.alt_id = quoteOrNull(segment['OBX.3']['OBX.3.4'].toString())
+        obx.alt_text = quoteOrNull(segment['OBX.3']['OBX.3.5'].toString())
+        obx.alt_coding = quoteOrNull(segment['OBX.3']['OBX.3.6'].toString())
+        obx.reference_range = quoteOrNull(segment['OBX.7']['OBX.7.1'].toString())
+
+        obx.abnorm_id = quoteOrNull(segment['OBX.8']['OBX.8.1'].toString())
+        obx.abnorm_text = quoteOrNull(segment['OBX.8']['OBX.8.2'].toString())
+        obx.abnorm_coding = quoteOrNull(segment['OBX.8']['OBX.8.3'].toString())
+        obx.alt_abnorm_id = quoteOrNull(segment['OBX.8']['OBX.8.4'].toString())
+        obx.alt_abnorm_text = quoteOrNull(segment['OBX.8']['OBX.8.5'].toString())
+        obx.alt_abnorm_coding = quoteOrNull(segment['OBX.8']['OBX.8.6'].toString())
+
+        group.obxArray.push(obx)
+    }
+
+    if (segment.name() == "NTE") {
+        nte = new Object()
+        nte.sequence = quoteOrNull(segment['NTE.1']['NTE.1.1'].toString())
+        nte.note = quoteOrNull(segment['NTE.3']['NTE.3.1'].toString())
+        nteArray.push(nte)
+    }
+
+    if (segment.name() == "SPM") {
+        // Only store specimens with a defined ID
+		if (quoteOrNull(segment['SPM.4']['SPM.4.1'].toString())) {
+            spm = new Object()
+            spm.id = quoteOrNull(segment['SPM.4']['SPM.4.1'].toString())
+            spm.description = quoteOrNull(segment['SPM.4']['SPM.4.2'].toString())
+            spm.code = quoteOrNull(segment['SPM.4']['SPM.4.4'].toString())
+            group.spmArray.push(spm)
+        }
+    }
+}
+
+channelMap.put("labArray", labArray)</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>function subelement(string, index) {
+    // Need to parse out the subelement using the '&amp;' delimiter
+    // For example a call subelement('&amp;&amp;&amp;BLUD&amp;Blood&amp;L', 3) returns 'BLUD'
+    // NB this is 0 indexed, unlike segment references.
+    if (string.length &lt; index) {
+        return null
+    }
+	elements = string.split('&amp;')
+	if (elements.length &gt;= index) {
+        return "'" + elements[index] + "'"
+    }
+    return null
+}
+
+var labArray = new Array()
+var group = null
+var obx = null
+var nteArray = null
+
+// We are forced to iterate through all segments in the message
+// in order to maintain the OBR:OBX association.
+
+// The NTE associations are even trickier, as they may be associated
+// with EITHER the preceding OBX or OBR.
+
+// Build up an array of lab data. Each 'group' consists of:
+//  - one obr (in attribute 'obr')
+//  - zero or more obx (in attribute 'obxArray')
+//  - zero or more spm (in attribute 'spmArray')
+//  - zero or more nte (in attribute 'nteArray')
+
+for each (segment in msg.children()){
+
+    if (segment.name() == "OBR") {
+        // Start of new group.
+        group = new Object()
+        group.obr = new Object()
+        group.obxArray = new Array()
+        group.spmArray = new Array()
+        labArray.push(group)
+
+        // placeholder should any NTE segments follow 
+        // belonging to this OBR
+        nteArray = new Array()
+        group.nteArray = nteArray
+        
+        // Store interesting bits
+        group.obr.loinc_code = quoteOrNull(segment['OBR.4']['OBR.4.1'].toString())
+        group.obr.loinc_text = quoteOrNull(segment['OBR.4']['OBR.4.2'].toString())
+        group.obr.alt_text = quoteOrNull(segment['OBR.4']['OBR.4.5'].toString())
+        group.obr.observation_datetime = quoteOrNull(datetimeForSQL(segment['OBR.7']['OBR.7.1'].toString()))
+        group.obr.status = quoteOrNull(segment['OBR.25']['OBR.25.1'].toString())
+		if (group.obr.status != null &amp;&amp; group.obr.status.length &gt; 3) {
+			// Known problem from INHS - bad mapping 'IP' should have been 'I'
+			if (group.obr.status == "'IP'") {
+				group.obr.status = "'I'"
+			} else {
+				logger.error("obr.status too long:" + group.obr.status)
+				group.obr.status = null
+			}
+		}
+        group.obr.report_datetime = quoteOrNull(datetimeForSQL(segment['OBR.22']['OBR.22.1'].toString()))
+        group.obr.specimen_source = subelement(segment['OBR.15']['OBR.15.1'].toString(), 3)
+        group.obr.filler_order_no = quoteOrNull(segment['OBR.3']['OBR.3.1'].toString())
+        group.obr.coding = quoteOrNull(segment['OBR.4']['OBR.4.3'].toString())
+        group.obr.alt_code = quoteOrNull(segment['OBR.4']['OBR.4.4'].toString())
+        group.obr.alt_coding = quoteOrNull(segment['OBR.4']['OBR.4.6'].toString())
+    }
+
+    if (segment.name() == "OBX") {
+        obx = new Object()
+
+        // placeholder should any NTE segments follow 
+        // belonging to this OBX
+        nteArray = new Array()
+        obx.nteArray = nteArray
+
+        // Store interesting bits
+        obx.value_type = quoteOrNull(segment['OBX.2']['OBX.2.1'].toString())
+        obx.observation_id = quoteOrNull(segment['OBX.3']['OBX.3.1'].toString())
+        obx.observation_text = quoteOrNull(segment['OBX.3']['OBX.3.2'].toString())
+        obx.observation_result = quoteOrNull(segment['OBX.5'].toString())
+        if (segment['OBX.6']['OBX.6.5'].toString().length &gt; 0) {
+            obx.units = quoteOrNull(segment['OBX.6']['OBX.6.5'].toString())
+        } else {
+            obx.units = quoteOrNull(segment['OBX.6']['OBX.6.2'].toString())
+        }
+        obx.result_status = quoteOrNull(segment['OBX.11']['OBX.11.2'].toString())
+        obx.observation_datetime = quoteOrNull(datetimeForSQL(segment['OBX.14']['OBX.14.1'].toString())) 
+        obx.performing_lab_code = quoteOrNull(segment['OBX.15']['OBX.15.4'].toString())
+        obx.sequence = quoteOrNull(segment['OBX.4']['OBX.4.1'].toString())
+        obx.coding = quoteOrNull(segment['OBX.3']['OBX.3.3'].toString())
+        obx.alt_id = quoteOrNull(segment['OBX.3']['OBX.3.4'].toString())
+        obx.alt_text = quoteOrNull(segment['OBX.3']['OBX.3.5'].toString())
+        obx.alt_coding = quoteOrNull(segment['OBX.3']['OBX.3.6'].toString())
+        obx.reference_range = quoteOrNull(segment['OBX.7']['OBX.7.1'].toString())
+
+        obx.abnorm_id = quoteOrNull(segment['OBX.8']['OBX.8.1'].toString())
+        obx.abnorm_text = quoteOrNull(segment['OBX.8']['OBX.8.2'].toString())
+        obx.abnorm_coding = quoteOrNull(segment['OBX.8']['OBX.8.3'].toString())
+        obx.alt_abnorm_id = quoteOrNull(segment['OBX.8']['OBX.8.4'].toString())
+        obx.alt_abnorm_text = quoteOrNull(segment['OBX.8']['OBX.8.5'].toString())
+        obx.alt_abnorm_coding = quoteOrNull(segment['OBX.8']['OBX.8.6'].toString())
+
+        group.obxArray.push(obx)
+    }
+
+    if (segment.name() == "NTE") {
+        nte = new Object()
+        nte.sequence = quoteOrNull(segment['NTE.1']['NTE.1.1'].toString())
+        nte.note = quoteOrNull(segment['NTE.3']['NTE.3.1'].toString())
+        nteArray.push(nte)
+    }
+
+    if (segment.name() == "SPM") {
+        // Only store specimens with a defined ID
+		if (quoteOrNull(segment['SPM.4']['SPM.4.1'].toString())) {
+            spm = new Object()
+            spm.id = quoteOrNull(segment['SPM.4']['SPM.4.1'].toString())
+            spm.description = quoteOrNull(segment['SPM.4']['SPM.4.2'].toString())
+            spm.code = quoteOrNull(segment['SPM.4']['SPM.4.4'].toString())
+            group.spmArray.push(spm)
+        }
+    }
+}
+
+channelMap.put("labArray", labArray)</string>
+              </entry>
+            </data>
+          </step>
+        </steps>
+        <inboundTemplate encoding="base64"/>
+        <outboundTemplate encoding="base64"/>
+        <inboundProtocol>XML</inboundProtocol>
+        <outboundProtocol>XML</outboundProtocol>
+        <inboundProperties>
+          <property name="stripNamespaces">true</property>
+        </inboundProperties>
+        <outboundProperties>
+          <property name="stripNamespaces">true</property>
+        </outboundProperties>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+      <transportName>Database Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+  </destinationConnectors>
+  <properties>
+    <property name="clearGlobalChannelMap">true</property>
+    <property name="dont_store_filtered">false</property>
+    <property name="encryptData">false</property>
+    <property name="error_messages_only">false</property>
+    <property name="initialState">started</property>
+    <property name="max_message_age">3</property>
+    <property name="store_messages">true</property>
+    <property name="synchronous">true</property>
+    <property name="transactional">false</property>
+  </properties>
+  <preprocessingScript>// Modify the message variable below to pre process data
+return message;</preprocessingScript>
+  <postprocessingScript>// This script executes once after a message has been processed
+return;</postprocessingScript>
+  <deployScript>// This script executes once when the channel is deployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</deployScript>
+  <shutdownScript>// This script executes once when the channel is undeployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</shutdownScript>
+</channel>

@@ -1,0 +1,249 @@
+<channel>
+  <id>9c6d9546-bfba-4445-a6bb-f6e2869aaa42</id>
+  <name>PHEME_http_receiver</name>
+  <description>Simple HTTP listener to receive file uploads.
+
+The received file is written to the directory the PHEME_batchfile_consumer channel polls for input, where it should be picked up and processed.</description>
+  <enabled>true</enabled>
+  <version>2.2.1.5861</version>
+  <lastModified>
+    <time>1378423237328</time>
+    <timezone>US/Pacific</timezone>
+  </lastModified>
+  <revision>22</revision>
+  <sourceConnector>
+    <name>sourceConnector</name>
+    <properties>
+      <property name="DataType">HTTP Listener</property>
+      <property name="host">127.0.0.1</property>
+      <property name="port">8099</property>
+      <property name="receiverBodyOnly">0</property>
+      <property name="receiverCharset">UTF-8</property>
+      <property name="receiverContextPath">/</property>
+      <property name="receiverResponse">Destination 1</property>
+      <property name="receiverResponseContentType">text/plain</property>
+      <property name="receiverResponseHeaders">&lt;linked-hash-map/&gt;</property>
+      <property name="receiverResponseStatusCode"/>
+      <property name="receiverTimeout">0</property>
+    </properties>
+    <transformer>
+      <steps>
+        <step>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Extract POST multipart data</name>
+          <script>// Function to extract MIME form data parts from text
+// returns populated object
+var buildPart = function(MIMEpart) {
+    obj = {}
+    obj.contentdisposition = MIMEpart.match(/Content-Disposition: (.*?)\r\n/)[1];
+    obj.name = MIMEpart.match(/name="(.*?)"/)[1];
+    var clear = '\r\n\r\n';
+    valueStart = MIMEpart.indexOf(clear);
+    var value = MIMEpart.slice(valueStart + clear.length, MIMEpart.length);
+    obj.value = value.replace(/\r\n$/, '');  // chop terminating EOL
+    return obj
+}
+
+
+// Function to extract the MIME parts from the content
+// of the message, using the boundary found in the header
+// Returns object populated with MIME parts as named attributes
+var getParts = function(content, boundary) {
+    var parts = {};
+
+    // MIME boundary includes a double hyphen at the start
+    boundary = '--' + boundary;
+    var end, start = 0;
+    while (start !== -1) {
+        start = content.indexOf(boundary, start);
+        end = content.indexOf(boundary, start + boundary.length);
+        if (start === -1 || end === -1) {
+            break;
+        }
+        part = buildPart(content.slice(start+boundary.length, end))
+        parts[part.name] = part
+        start = end;
+    }
+    return parts;
+}
+
+// The MIME boundary is included in the header
+var contenttype = msg['Header']['Content-Type']
+var boundary = contenttype.match(/boundary=(.*)$/)[1]
+
+// Extract and store all the MIME parts in the Channel Map
+channelMap.put('MIMEparts', getParts(msg['Content'], boundary))</script>
+          <type>JavaScript</type>
+          <data class="map">
+            <entry>
+              <string>Script</string>
+              <string>// Function to extract MIME form data parts from text
+// returns populated object
+var buildPart = function(MIMEpart) {
+    obj = {}
+    obj.contentdisposition = MIMEpart.match(/Content-Disposition: (.*?)\r\n/)[1];
+    obj.name = MIMEpart.match(/name="(.*?)"/)[1];
+    var clear = '\r\n\r\n';
+    valueStart = MIMEpart.indexOf(clear);
+    var value = MIMEpart.slice(valueStart + clear.length, MIMEpart.length);
+    obj.value = value.replace(/\r\n$/, '');  // chop terminating EOL
+    return obj
+}
+
+
+// Function to extract the MIME parts from the content
+// of the message, using the boundary found in the header
+// Returns object populated with MIME parts as named attributes
+var getParts = function(content, boundary) {
+    var parts = {};
+
+    // MIME boundary includes a double hyphen at the start
+    boundary = '--' + boundary;
+    var end, start = 0;
+    while (start !== -1) {
+        start = content.indexOf(boundary, start);
+        end = content.indexOf(boundary, start + boundary.length);
+        if (start === -1 || end === -1) {
+            break;
+        }
+        part = buildPart(content.slice(start+boundary.length, end))
+        parts[part.name] = part
+        start = end;
+    }
+    return parts;
+}
+
+// The MIME boundary is included in the header
+var contenttype = msg['Header']['Content-Type']
+var boundary = contenttype.match(/boundary=(.*)$/)[1]
+
+// Extract and store all the MIME parts in the Channel Map
+channelMap.put('MIMEparts', getParts(msg['Content'], boundary))</string>
+            </entry>
+          </data>
+        </step>
+        <step>
+          <sequenceNumber>1</sequenceNumber>
+          <name>Form values to locals</name>
+          <script>// Pull the form data 'filename' value from the channelMap value loaded in
+// the external script.  Push into another channelMap variable to convince
+// mirth it is accessible in the destination
+ 
+var parts = channelMap.get('MIMEparts');
+channelMap.put('original_filename', parts.filename.value)
+logger.info('original_filename:"' + parts.filename.value + '"');
+channelMap.put('filedata', parts.filedata.value)</script>
+          <type>JavaScript</type>
+          <data class="map">
+            <entry>
+              <string>Script</string>
+              <string>// Pull the form data 'filename' value from the channelMap value loaded in
+// the external script.  Push into another channelMap variable to convince
+// mirth it is accessible in the destination
+ 
+var parts = channelMap.get('MIMEparts');
+channelMap.put('original_filename', parts.filename.value)
+logger.info('original_filename:"' + parts.filename.value + '"');
+channelMap.put('filedata', parts.filedata.value)</string>
+            </entry>
+          </data>
+        </step>
+      </steps>
+      <inboundTemplate encoding="base64"/>
+      <outboundTemplate encoding="base64"/>
+      <inboundProtocol>XML</inboundProtocol>
+      <outboundProtocol>HL7V2</outboundProtocol>
+      <inboundProperties>
+        <property name="stripNamespaces">true</property>
+      </inboundProperties>
+      <outboundProperties>
+        <property name="convertLFtoCR">true</property>
+        <property name="handleRepetitions">false</property>
+        <property name="handleSubcomponents">false</property>
+        <property name="stripNamespaces">true</property>
+        <property name="useStrictParser">false</property>
+        <property name="useStrictValidation">false</property>
+      </outboundProperties>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+    <transportName>HTTP Listener</transportName>
+    <mode>SOURCE</mode>
+    <enabled>true</enabled>
+    <version>2.2.1.5861</version>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>Destination 1</name>
+      <properties>
+        <property name="DataType">File Writer</property>
+        <property name="FTPAnonymous">1</property>
+        <property name="binary">0</property>
+        <property name="charsetEncoding">DEFAULT_ENCODING</property>
+        <property name="errorOnExists">0</property>
+        <property name="host">/opt/pheme/filedrops</property>
+        <property name="outputAppend">0</property>
+        <property name="outputPattern">${original_filename}</property>
+        <property name="passive">1</property>
+        <property name="password">password</property>
+        <property name="scheme">file</property>
+        <property name="secure">1</property>
+        <property name="template">${filedata}</property>
+        <property name="temporary">0</property>
+        <property name="timeout">10000</property>
+        <property name="username">user</property>
+        <property name="validateConnections">1</property>
+      </properties>
+      <transformer>
+        <steps/>
+        <inboundProtocol>HL7V2</inboundProtocol>
+        <outboundProtocol>HL7V2</outboundProtocol>
+        <inboundProperties>
+          <property name="convertLFtoCR">true</property>
+          <property name="handleRepetitions">false</property>
+          <property name="handleSubcomponents">false</property>
+          <property name="stripNamespaces">true</property>
+          <property name="useStrictParser">false</property>
+          <property name="useStrictValidation">false</property>
+        </inboundProperties>
+        <outboundProperties>
+          <property name="convertLFtoCR">true</property>
+          <property name="handleRepetitions">false</property>
+          <property name="handleSubcomponents">false</property>
+          <property name="stripNamespaces">true</property>
+          <property name="useStrictParser">false</property>
+          <property name="useStrictValidation">false</property>
+        </outboundProperties>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+      <transportName>File Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+  </destinationConnectors>
+  <properties>
+    <property name="clearGlobalChannelMap">true</property>
+    <property name="dont_store_filtered">false</property>
+    <property name="encryptData">false</property>
+    <property name="error_messages_only">false</property>
+    <property name="initialState">started</property>
+    <property name="max_message_age">-1</property>
+    <property name="store_messages">true</property>
+    <property name="synchronous">true</property>
+    <property name="transactional">false</property>
+  </properties>
+  <preprocessingScript>// Modify the message variable below to pre process data
+return message;</preprocessingScript>
+  <postprocessingScript>// This script executes once after a message has been processed
+return;</postprocessingScript>
+  <deployScript>// This script executes once when the channel is deployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</deployScript>
+  <shutdownScript>// This script executes once when the channel is undeployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</shutdownScript>
+</channel>

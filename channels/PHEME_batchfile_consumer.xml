@@ -1,0 +1,637 @@
+<channel>
+  <id>0119a3b6-70dd-424b-87a9-5d68e68b449a</id>
+  <name>PHEME_batchfile_consumer</name>
+  <description>Consumes HL7 batch files.
+
+Iterates through each HL7 message in the batch.  Requires well defined message control ID in MSH-10.1 and visit ID in MSH-18.1.  If the message control ID is not unique, the message is ignored, assuming it to be a duplicate.
+
+After storing the raw message and the data in the hl7_msh table, this channel delegates processing to subsequent channels via destinations.  The hl7_raw_message and hl7_msh inserts are done in source filter and transformer methods, to allow for asynchronous destinations, as the foreign key to hl7_msh_id must point to an existing row.
+</description>
+  <enabled>true</enabled>
+  <version>2.2.1.5861</version>
+  <lastModified>
+    <time>1378408767720</time>
+    <timezone>US/Pacific</timezone>
+  </lastModified>
+  <revision>111</revision>
+  <sourceConnector>
+    <name>sourceConnector</name>
+    <properties>
+      <property name="DataType">File Reader</property>
+      <property name="FTPAnonymous">1</property>
+      <property name="autoDelete">0</property>
+      <property name="binary">0</property>
+      <property name="charsetEncoding">DEFAULT_ENCODING</property>
+      <property name="checkFileAge">1</property>
+      <property name="fileAge">5000</property>
+      <property name="fileFilter">*</property>
+      <property name="host">/opt/pheme/filedrops</property>
+      <property name="ignoreDot">0</property>
+      <property name="moveToDirectory">/opt/pheme/processed</property>
+      <property name="moveToErrorDirectory">/opt/pheme/error</property>
+      <property name="moveToPattern">${ORIGINALNAME}</property>
+      <property name="passive">1</property>
+      <property name="password">anonymous</property>
+      <property name="pollingFrequency">1000</property>
+      <property name="pollingType">interval</property>
+      <property name="processBatchFiles">1</property>
+      <property name="regex">0</property>
+      <property name="scheme">file</property>
+      <property name="secure">1</property>
+      <property name="sortAttribute">date</property>
+      <property name="timeout">10000</property>
+      <property name="username">anonymous</property>
+      <property name="validateConnections">1</property>
+    </properties>
+    <transformer>
+      <steps>
+        <step>
+          <sequenceNumber>0</sequenceNumber>
+          <name>hl7_msh insert</name>
+          <script>var message_control_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+var batch_filename = channelMap.get("originalFilename")
+var msh_facility_id = msg['MSH']['MSH.4']['MSH.4.2'].toString()
+var msh_datetime = datetimeForSQL(msg['MSH']['MSH.7']['MSH.7.1'].toString())
+
+var msh_type = msg['MSH']['MSH.9']['MSH.9.1'].toString() + "^" +
+    	msg['MSH']['MSH.9']['MSH.9.2'].toString() + "^" + 
+	msg['MSH']['MSH.9']['MSH.9.3'].toString();
+
+var stmt = new java.lang.StringBuilder()
+stmt.append("INSERT INTO hl7_msh (hl7_msh_id, message_control_id,")
+stmt.append("  message_type, facility,")
+stmt.append("  message_datetime, batch_filename)")
+stmt.append("VALUES (" + parseInt(channelMap.get("hl7_msh_id")) + ",'")
+stmt.append(message_control_id + "','")
+stmt.append(msh_type + "','" + msh_facility_id + "','")
+stmt.append(msh_datetime + "','" + batch_filename + "'")
+stmt.append(");")
+
+var dbConn = DatabaseConnectionFactory.createDatabaseConnection('org.logicalcobwebs.proxool.ProxoolDriver',
+    'proxool.example:org.postgresql.Driver:jdbc:postgresql://localhost:5432/warehouse','user','password');
+try {
+    dbConn.executeUpdate(stmt)
+} catch (e) {
+    logger.error("Exception caught on hl7_msh insert")
+    logger.error("Failed stmt: " + stmt)
+    logger.error("message_control_id: " + message_control_id)
+    logger.error("batch_filename: " + batch_filename)
+    logger.error(e)
+	throw e;  // Without a valid hl7_msh row, can't continue
+} finally {
+    dbConn.close()
+}</script>
+          <type>JavaScript</type>
+          <data class="map">
+            <entry>
+              <string>Script</string>
+              <string>var message_control_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+var batch_filename = channelMap.get("originalFilename")
+var msh_facility_id = msg['MSH']['MSH.4']['MSH.4.2'].toString()
+var msh_datetime = datetimeForSQL(msg['MSH']['MSH.7']['MSH.7.1'].toString())
+
+var msh_type = msg['MSH']['MSH.9']['MSH.9.1'].toString() + "^" +
+    	msg['MSH']['MSH.9']['MSH.9.2'].toString() + "^" + 
+	msg['MSH']['MSH.9']['MSH.9.3'].toString();
+
+var stmt = new java.lang.StringBuilder()
+stmt.append("INSERT INTO hl7_msh (hl7_msh_id, message_control_id,")
+stmt.append("  message_type, facility,")
+stmt.append("  message_datetime, batch_filename)")
+stmt.append("VALUES (" + parseInt(channelMap.get("hl7_msh_id")) + ",'")
+stmt.append(message_control_id + "','")
+stmt.append(msh_type + "','" + msh_facility_id + "','")
+stmt.append(msh_datetime + "','" + batch_filename + "'")
+stmt.append(");")
+
+var dbConn = DatabaseConnectionFactory.createDatabaseConnection('org.logicalcobwebs.proxool.ProxoolDriver',
+    'proxool.example:org.postgresql.Driver:jdbc:postgresql://localhost:5432/warehouse','user','password');
+try {
+    dbConn.executeUpdate(stmt)
+} catch (e) {
+    logger.error("Exception caught on hl7_msh insert")
+    logger.error("Failed stmt: " + stmt)
+    logger.error("message_control_id: " + message_control_id)
+    logger.error("batch_filename: " + batch_filename)
+    logger.error(e)
+	throw e;  // Without a valid hl7_msh row, can't continue
+} finally {
+    dbConn.close()
+}</string>
+            </entry>
+          </data>
+        </step>
+      </steps>
+      <inboundTemplate encoding="base64"/>
+      <outboundTemplate encoding="base64"/>
+      <inboundProtocol>HL7V2</inboundProtocol>
+      <outboundProtocol>HL7V2</outboundProtocol>
+      <inboundProperties/>
+      <outboundProperties/>
+    </transformer>
+    <filter>
+      <rules>
+        <rule>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Require visit_id</name>
+          <data class="map">
+            <entry>
+              <string>Script</string>
+              <string>if (! msg['PID']['PID.18']['PID.18.1'].toString().length &gt; 0) {
+  logger.debug('filtering on missing visit_id');
+}
+return msg['PID']['PID.18']['PID.18.1'].toString().length &gt; 0</string>
+            </entry>
+          </data>
+          <type>JavaScript</type>
+          <script>if (! msg['PID']['PID.18']['PID.18.1'].toString().length &gt; 0) {
+  logger.debug('filtering on missing visit_id');
+}
+return msg['PID']['PID.18']['PID.18.1'].toString().length &gt; 0</script>
+          <operator>NONE</operator>
+        </rule>
+        <rule>
+          <sequenceNumber>1</sequenceNumber>
+          <name>Filter duplicate message_control_id and create hl7_msh_id</name>
+          <data class="map">
+            <entry>
+              <string>Script</string>
+              <string>// Validate this is a message we don't already have
+// Obtain the hl7_msh_id foreign key used in all destinations
+
+var dbConn = DatabaseConnectionFactory.createDatabaseConnection('org.logicalcobwebs.proxool.ProxoolDriver',
+    'proxool.example:org.postgresql.Driver:jdbc:postgresql://localhost:5432/warehouse','user','password');
+try {
+    var msg_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+
+    // Require a message control ID
+    if (msg_id.length &lt;= 0) {
+        return false
+    }
+
+    var query = "INSERT INTO hl7_raw_message (message_control_id, raw_data, import_time)"
+    query += "VALUES(?,?,?)"
+
+	var params = new java.util.ArrayList()
+    params.add(msg_id)
+    params.add(messageObject.getRawData())
+    params.add(java.util.Date().getTime())
+
+    dbConn.executeUpdate(query, params)
+
+    // Given unique constraint, we're only here if the message_control_id is new,
+    // carry on...
+
+    var result = dbConn.executeCachedQuery("SELECT nextval('hl7_msh_hl7_msh_id_seq')")
+    result.first()
+	var hl7_msh_id = result.getInt(1)
+    channelMap.put('hl7_msh_id', hl7_msh_id)
+
+	// Store the hl7_msh_id as a custom HL7 'Z' segment and push into the message,
+    // thereby making it accessible to all destinations receiving the message.
+
+    createSegment('ZID', msg)
+    msg['ZID']['ZID.1']['ZID.1.1'] = 'hl7_msh_id'
+    msg['ZID']['ZID.1']['ZID.1.2'] = hl7_msh_id
+
+    return true
+} catch (e) {
+    if (e.toString().indexOf("duplicate key value violates unique constraint") &gt; -1) {
+        logger.debug("Skipping duplicate message_control_id " + msg_id)
+    } else {	
+        logger.error("Exception caught storing raw message or nextval('hl7_msh_hl7_msh_id_seq')")
+        logger.error(e)
+    }
+    return false
+} finally {
+    dbConn.close()
+}</string>
+            </entry>
+          </data>
+          <type>JavaScript</type>
+          <script>// Validate this is a message we don't already have
+// Obtain the hl7_msh_id foreign key used in all destinations
+
+var dbConn = DatabaseConnectionFactory.createDatabaseConnection('org.logicalcobwebs.proxool.ProxoolDriver',
+    'proxool.example:org.postgresql.Driver:jdbc:postgresql://localhost:5432/warehouse','user','password');
+try {
+    var msg_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+
+    // Require a message control ID
+    if (msg_id.length &lt;= 0) {
+        return false
+    }
+
+    var query = "INSERT INTO hl7_raw_message (message_control_id, raw_data, import_time)"
+    query += "VALUES(?,?,?)"
+
+	var params = new java.util.ArrayList()
+    params.add(msg_id)
+    params.add(messageObject.getRawData())
+    params.add(java.util.Date().getTime())
+
+    dbConn.executeUpdate(query, params)
+
+    // Given unique constraint, we're only here if the message_control_id is new,
+    // carry on...
+
+    var result = dbConn.executeCachedQuery("SELECT nextval('hl7_msh_hl7_msh_id_seq')")
+    result.first()
+	var hl7_msh_id = result.getInt(1)
+    channelMap.put('hl7_msh_id', hl7_msh_id)
+
+	// Store the hl7_msh_id as a custom HL7 'Z' segment and push into the message,
+    // thereby making it accessible to all destinations receiving the message.
+
+    createSegment('ZID', msg)
+    msg['ZID']['ZID.1']['ZID.1.1'] = 'hl7_msh_id'
+    msg['ZID']['ZID.1']['ZID.1.2'] = hl7_msh_id
+
+    return true
+} catch (e) {
+    if (e.toString().indexOf("duplicate key value violates unique constraint") &gt; -1) {
+        logger.debug("Skipping duplicate message_control_id " + msg_id)
+    } else {	
+        logger.error("Exception caught storing raw message or nextval('hl7_msh_hl7_msh_id_seq')")
+        logger.error(e)
+    }
+    return false
+} finally {
+    dbConn.close()
+}</script>
+          <operator>AND</operator>
+        </rule>
+      </rules>
+    </filter>
+    <transportName>File Reader</transportName>
+    <mode>SOURCE</mode>
+    <enabled>true</enabled>
+    <version>2.2.1.5861</version>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>debug - write outbound xml to disk</name>
+      <properties>
+        <property name="DataType">Channel Writer</property>
+        <property name="host">f9bbd954-1c0c-4262-8bb8-00b0c6927e76</property>
+        <property name="synchronised">0</property>
+        <property name="template">${message.transformedData}</property>
+      </properties>
+      <transformer>
+        <steps>
+          <step>
+            <sequenceNumber>0</sequenceNumber>
+            <name>Populate minimal XML for hl7_obr channel's needs</name>
+            <script>tmp['MSH']['MSH.9']['MSH.9.1'] = msg['MSH']['MSH.9']['MSH.9.1']
+tmp['MSH']['MSH.9']['MSH.9.3'] = msg['MSH']['MSH.9']['MSH.9.3']
+tmp['MSH']['MSH.10']['MSH.10.1'] = msg['MSH']['MSH.10']['MSH.10.1']
+tmp['PID']['PID.18']['PID.18.1'] = msg['PID']['PID.18']['PID.18.1']
+tmp.OBR = new XMLList(msg..OBR)
+tmp.OBX = new XMLList(msg..OBX)
+tmp.NTE = new XMLList(msg..NTE)
+tmp.SPM = new XMLList(msg..SPM)
+tmp['ZID']['ZID.1']['ZID.1.2'] = msg['ZID']['ZID.1']['ZID.1.2']</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>tmp['MSH']['MSH.9']['MSH.9.1'] = msg['MSH']['MSH.9']['MSH.9.1']
+tmp['MSH']['MSH.9']['MSH.9.3'] = msg['MSH']['MSH.9']['MSH.9.3']
+tmp['MSH']['MSH.10']['MSH.10.1'] = msg['MSH']['MSH.10']['MSH.10.1']
+tmp['PID']['PID.18']['PID.18.1'] = msg['PID']['PID.18']['PID.18.1']
+tmp.OBR = new XMLList(msg..OBR)
+tmp.OBX = new XMLList(msg..OBX)
+tmp.NTE = new XMLList(msg..NTE)
+tmp.SPM = new XMLList(msg..SPM)
+tmp['ZID']['ZID.1']['ZID.1.2'] = msg['ZID']['ZID.1']['ZID.1.2']</string>
+              </entry>
+            </data>
+          </step>
+        </steps>
+        <inboundTemplate encoding="base64"/>
+        <outboundTemplate encoding="base64">PEhMN01lc3NhZ2U+CiAgICA8TVNIPgogICAgICAgIDxNU0guOT4KICAgICAgICAgICAgPE1TSC45
+LjE+PC9NU0guOS4xPgogICAgICAgICAgICA8TVNILjkuMz48L01TSC45LjM+CiAgICAgICAgPC9N
+U0guOT4KICAgICAgICA8TVNILjEwPgogICAgICAgICAgICA8TVNILjEwLjE+PC9NU0guMTAuMT4K
+ICAgICAgICA8L01TSC4xMD4KICAgIDwvTVNIPgogICAgPFBJRD4KICAgICAgICA8UElELjE4Pgog
+ICAgICAgICAgICA8UElELjE4LjE+PC9QSUQuMTguMT4KICAgICAgICA8L1BJRC4xOD4KICAgIDwv
+UElEPgogICAgPFpJRD4KICAgICAgICA8WklELjE+CiAgICAgICAgICAgIDxaSUQuMS4xPmhsN19t
+c2hfaWQ8L1pJRC4xLjE+CiAgICAgICAgICAgIDxaSUQuMS4yPjwvWklELjEuMj4KICAgICAgICA8
+L1pJRC4xPgogICAgPC9aSUQ+CjwvSEw3TWVzc2FnZT4=</outboundTemplate>
+        <inboundProtocol>HL7V2</inboundProtocol>
+        <outboundProtocol>XML</outboundProtocol>
+        <inboundProperties/>
+        <outboundProperties>
+          <property name="stripNamespaces">false</property>
+        </outboundProperties>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+      <transportName>Channel Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>false</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+    <connector>
+      <name>hl7_visit insert</name>
+      <properties>
+        <property name="DataType">Channel Writer</property>
+        <property name="host">8b514e74-1bbe-403b-842b-1c9b4487a43f</property>
+        <property name="synchronised">0</property>
+        <property name="template">${message.transformedData}</property>
+      </properties>
+      <transformer>
+        <steps>
+          <step>
+            <sequenceNumber>0</sequenceNumber>
+            <name>Populate minimal XML for hl7_visit channel's needs</name>
+            <script>tmp['MSH']['MSH.10']['MSH.10.1'] = msg['MSH']['MSH.10']['MSH.10.1']
+tmp.PID = msg.PID
+tmp.PV1 = msg.PV1
+tmp.PV2 = msg.PV2
+tmp['ZID']['ZID.1']['ZID.1.2'] = msg['ZID']['ZID.1']['ZID.1.2']</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>tmp['MSH']['MSH.10']['MSH.10.1'] = msg['MSH']['MSH.10']['MSH.10.1']
+tmp.PID = msg.PID
+tmp.PV1 = msg.PV1
+tmp.PV2 = msg.PV2
+tmp['ZID']['ZID.1']['ZID.1.2'] = msg['ZID']['ZID.1']['ZID.1.2']</string>
+              </entry>
+            </data>
+          </step>
+        </steps>
+        <inboundTemplate encoding="base64"/>
+        <outboundTemplate encoding="base64">PEhMN01lc3NhZ2U+CiAgICA8TVNIPgogICAgICAgIDxNU0guMTA+CiAgICAgICAgICAgIDxNU0gu
+MTAuMT48L01TSC4xMC4xPgogICAgICAgIDwvTVNILjEwPgogICAgPC9NU0g+CiAgICA8UFYyPgog
+ICAgICAgIDxQVjIuMz4KICAgICAgICAgICAgPFBWMi4zLjU+PC9QVjIuMy41PgogICAgICAgIDwv
+UFYyLjM+CiAgICA8L1BWMj4KICAgIDxaSUQ+CiAgICAgICAgPFpJRC4xPgogICAgICAgICAgICA8
+WklELjEuMT5obDdfbXNoX2lkPC9aSUQuMS4xPgogICAgICAgICAgICA8WklELjEuMj48L1pJRC4x
+LjI+CiAgICAgICAgPC9aSUQuMT4KICAgIDwvWklEPgo8L0hMN01lc3NhZ2U+</outboundTemplate>
+        <inboundProtocol>HL7V2</inboundProtocol>
+        <outboundProtocol>XML</outboundProtocol>
+        <inboundProperties/>
+        <outboundProperties>
+          <property name="stripNamespaces">false</property>
+        </outboundProperties>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+      <transportName>Channel Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+    <connector>
+      <name>hl7_dx insert</name>
+      <properties>
+        <property name="DataType">Channel Writer</property>
+        <property name="host">96fea321-defb-42a1-b6b2-74298bcc6e03</property>
+        <property name="synchronised">0</property>
+        <property name="template">${message.transformedData}</property>
+      </properties>
+      <transformer>
+        <steps>
+          <step>
+            <sequenceNumber>0</sequenceNumber>
+            <name>Populate minimal XML for hl7_dx channel's needs</name>
+            <script>tmp['MSH']['MSH.10']['MSH.10.1'] = msg['MSH']['MSH.10']['MSH.10.1']
+tmp['PID']['PID.18']['PID.18.1'] = msg['PID']['PID.18']['PID.18.1']
+tmp.DG1 = new XMLList(msg..DG1)
+tmp['ZID']['ZID.1']['ZID.1.2'] = msg['ZID']['ZID.1']['ZID.1.2']</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>tmp['MSH']['MSH.10']['MSH.10.1'] = msg['MSH']['MSH.10']['MSH.10.1']
+tmp['PID']['PID.18']['PID.18.1'] = msg['PID']['PID.18']['PID.18.1']
+tmp.DG1 = new XMLList(msg..DG1)
+tmp['ZID']['ZID.1']['ZID.1.2'] = msg['ZID']['ZID.1']['ZID.1.2']</string>
+              </entry>
+            </data>
+          </step>
+        </steps>
+        <inboundTemplate encoding="base64"/>
+        <outboundTemplate encoding="base64">PEhMN01lc3NhZ2U+CiAgICA8TVNIPgogICAgICAgIDxNU0guMTA+CiAgICAgICAgICAgIDxNU0gu
+MTAuMT48L01TSC4xMC4xPgogICAgICAgIDwvTVNILjEwPgogICAgPC9NU0g+CiAgICA8UElEPgog
+ICAgICAgIDxQSUQuMTg+CiAgICAgICAgICAgIDxQSUQuMTguMT48L1BJRC4xOC4xPgogICAgICAg
+IDwvUElELjE4PgogICAgPC9QSUQ+CiAgICA8WklEPgogICAgICAgIDxaSUQuMT4KICAgICAgICAg
+ICAgPFpJRC4xLjE+aGw3X21zaF9pZDwvWklELjEuMT4KICAgICAgICAgICAgPFpJRC4xLjI+PC9a
+SUQuMS4yPgogICAgICAgIDwvWklELjE+CiAgICA8L1pJRD4KPC9ITDdNZXNzYWdlPg==</outboundTemplate>
+        <inboundProtocol>HL7V2</inboundProtocol>
+        <outboundProtocol>XML</outboundProtocol>
+        <inboundProperties/>
+        <outboundProperties>
+          <property name="stripNamespaces">false</property>
+        </outboundProperties>
+      </transformer>
+      <filter>
+        <rules>
+          <rule>
+            <sequenceNumber>0</sequenceNumber>
+            <name>Contains DG1 segments</name>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>return msg['DG1'].length() &gt; 0</string>
+              </entry>
+            </data>
+            <type>JavaScript</type>
+            <script>return msg['DG1'].length() &gt; 0</script>
+            <operator>NONE</operator>
+          </rule>
+        </rules>
+      </filter>
+      <transportName>Channel Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+    <connector>
+      <name>hl7_obr insert</name>
+      <properties>
+        <property name="DataType">Channel Writer</property>
+        <property name="host">7edfc211-9958-4353-80f3-9954373f8fb8</property>
+        <property name="synchronised">0</property>
+        <property name="template">${message.encodedData}</property>
+      </properties>
+      <transformer>
+        <steps/>
+        <inboundTemplate encoding="base64"/>
+        <outboundTemplate encoding="base64"/>
+        <inboundProtocol>HL7V2</inboundProtocol>
+        <outboundProtocol>XML</outboundProtocol>
+        <inboundProperties/>
+        <outboundProperties>
+          <property name="stripNamespaces">false</property>
+        </outboundProperties>
+      </transformer>
+      <filter>
+        <rules>
+          <rule>
+            <sequenceNumber>0</sequenceNumber>
+            <name>message type in (ORU_R01, ORM_O01)</name>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var message_type = msg['MSH']['MSH.9']['MSH.9.1'].toString() +
+    msg['MSH']['MSH.9']['MSH.9.3'].toString()
+return message_type in {ORUORU_R01:1, ORMORM_O01:1}</string>
+              </entry>
+            </data>
+            <type>JavaScript</type>
+            <script>var message_type = msg['MSH']['MSH.9']['MSH.9.1'].toString() +
+    msg['MSH']['MSH.9']['MSH.9.3'].toString()
+return message_type in {ORUORU_R01:1, ORMORM_O01:1}</script>
+            <operator>NONE</operator>
+          </rule>
+          <rule>
+            <sequenceNumber>1</sequenceNumber>
+            <name>at least one OBR segment</name>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>return msg['OBR'].length() &gt; 0</string>
+              </entry>
+            </data>
+            <type>JavaScript</type>
+            <script>return msg['OBR'].length() &gt; 0</script>
+            <operator>AND</operator>
+          </rule>
+        </rules>
+      </filter>
+      <transportName>Channel Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+    <connector>
+      <name>hl7_obx insert</name>
+      <properties>
+        <property name="DataType">Channel Writer</property>
+        <property name="host">91066b75-e68f-49f6-9be0-9a9d6ef9bca0</property>
+        <property name="synchronised">0</property>
+        <property name="template">${message.transformedData}</property>
+      </properties>
+      <transformer>
+        <steps>
+          <step>
+            <sequenceNumber>0</sequenceNumber>
+            <name>Populate minimal XML for hl7_obx channel's needs</name>
+            <script>tmp['MSH']['MSH.9']['MSH.9.1'] = msg['MSH']['MSH.9']['MSH.9.1']
+tmp['MSH']['MSH.10']['MSH.10.1'] = msg['MSH']['MSH.10']['MSH.10.1']
+tmp['PID']['PID.18']['PID.18.1'] = msg['PID']['PID.18']['PID.18.1']
+tmp.OBX = new XMLList(msg..OBX)
+tmp['ZID']['ZID.1']['ZID.1.2'] = msg['ZID']['ZID.1']['ZID.1.2']</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>tmp['MSH']['MSH.9']['MSH.9.1'] = msg['MSH']['MSH.9']['MSH.9.1']
+tmp['MSH']['MSH.10']['MSH.10.1'] = msg['MSH']['MSH.10']['MSH.10.1']
+tmp['PID']['PID.18']['PID.18.1'] = msg['PID']['PID.18']['PID.18.1']
+tmp.OBX = new XMLList(msg..OBX)
+tmp['ZID']['ZID.1']['ZID.1.2'] = msg['ZID']['ZID.1']['ZID.1.2']</string>
+              </entry>
+            </data>
+          </step>
+        </steps>
+        <inboundTemplate encoding="base64"/>
+        <outboundTemplate encoding="base64">PEhMN01lc3NhZ2U+CiAgICA8TVNIPgogICAgICAgIDxNU0guOT4KICAgICAgICAgICAgPE1TSC45
+LjE+PC9NU0guOS4xPgogICAgICAgIDwvTVNILjk+CiAgICAgICAgPE1TSC4xMD4KICAgICAgICAg
+ICAgPE1TSC4xMC4xPjwvTVNILjEwLjE+CiAgICAgICAgPC9NU0guMTA+CiAgICA8L01TSD4KICAg
+IDxQSUQ+CiAgICAgICAgPFBJRC4xOD4KICAgICAgICAgICAgPFBJRC4xOC4xPjwvUElELjE4LjE+
+CiAgICAgICAgPC9QSUQuMTg+CiAgICA8L1BJRD4KICAgIDxaSUQ+CiAgICAgICAgPFpJRC4xPgog
+ICAgICAgICAgICA8WklELjEuMT5obDdfbXNoX2lkPC9aSUQuMS4xPgogICAgICAgICAgICA8WklE
+LjEuMj48L1pJRC4xLjI+CiAgICAgICAgPC9aSUQuMT4KICAgIDwvWklEPgo8L0hMN01lc3NhZ2U+
+</outboundTemplate>
+        <inboundProtocol>HL7V2</inboundProtocol>
+        <outboundProtocol>XML</outboundProtocol>
+        <inboundProperties/>
+        <outboundProperties>
+          <property name="stripNamespaces">false</property>
+        </outboundProperties>
+      </transformer>
+      <filter>
+        <rules>
+          <rule>
+            <sequenceNumber>0</sequenceNumber>
+            <name>Accept message if "msg['MSH']['MSH.9']['MSH.9.1'].toString()" equals 'ADT'</name>
+            <data class="map">
+              <entry>
+                <string>Name</string>
+                <string/>
+              </entry>
+              <entry>
+                <string>Values</string>
+                <list>
+                  <string>'ADT'</string>
+                </list>
+              </entry>
+              <entry>
+                <string>Field</string>
+                <string>msg['MSH']['MSH.9']['MSH.9.1'].toString()</string>
+              </entry>
+              <entry>
+                <string>OriginalField</string>
+                <string/>
+              </entry>
+              <entry>
+                <string>Equals</string>
+                <string>1</string>
+              </entry>
+            </data>
+            <type>Rule Builder</type>
+            <script>if(msg['MSH']['MSH.9']['MSH.9.1'].toString() == 'ADT')
+{
+return true;
+}
+return false;</script>
+            <operator>NONE</operator>
+          </rule>
+          <rule>
+            <sequenceNumber>1</sequenceNumber>
+            <name>At least one OBX segment</name>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>return msg['OBX'].length() &gt; 0</string>
+              </entry>
+            </data>
+            <type>JavaScript</type>
+            <script>return msg['OBX'].length() &gt; 0</script>
+            <operator>AND</operator>
+          </rule>
+        </rules>
+      </filter>
+      <transportName>Channel Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+  </destinationConnectors>
+  <properties>
+    <property name="clearGlobalChannelMap">true</property>
+    <property name="dont_store_filtered">false</property>
+    <property name="encryptData">false</property>
+    <property name="error_messages_only">false</property>
+    <property name="initialState">started</property>
+    <property name="max_message_age">3</property>
+    <property name="store_messages">true</property>
+    <property name="synchronous">true</property>
+    <property name="transactional">false</property>
+  </properties>
+  <preprocessingScript>// Modify the message variable below to pre process data
+return message;</preprocessingScript>
+  <postprocessingScript>// This script executes once after a message has been processed
+return;</postprocessingScript>
+  <deployScript>// This script executes once when the mule engine is started
+// You only have access to the globalMap here to persist data
+return;</deployScript>
+  <shutdownScript>// This script executes once when the mule engine is stopped
+// You only have access to the globalMap here to persist data
+return;</shutdownScript>
+</channel>

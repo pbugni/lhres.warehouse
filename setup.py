@@ -34,6 +34,6 @@ setup(name='pheme.warehouse',
                     deploy_channels=pheme.warehouse.mirth_shell_commands:deploy_channels
                     export_channels=pheme.warehouse.mirth_shell_commands:export_channels
                     transform_channels=pheme.warehouse.mirth_shell_commands:transform_channels
-                    mirth_channel_transform=pheme.warehouse.mirth_channel_transform:main
+                    process_testfiles_via_mirth=pheme.warehouse.tests.process_testfiles:process_testfiles_via_mirth
                     """),
 )

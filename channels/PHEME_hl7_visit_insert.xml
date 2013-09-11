@@ -1,0 +1,606 @@
+<channel>
+  <id>8b514e74-1bbe-403b-842b-1c9b4487a43f</id>
+  <name>PHEME_hl7_visit_insert</name>
+  <description>Channel listener - persists selected data from HL/7 PID and PV1 segments to warehouse hl7_visit table. 
+
+Inbound message must include:
+  - Foreign key `hl7_msh_id` in 'ZID-1.2'
+  - message_control_id in 'MSH-10.1'
+</description>
+  <enabled>true</enabled>
+  <version>2.2.1.5861</version>
+  <lastModified>
+    <time>1378415156138</time>
+    <timezone>US/Pacific</timezone>
+  </lastModified>
+  <revision>49</revision>
+  <sourceConnector>
+    <name>sourceConnector</name>
+    <properties>
+      <property name="DataType">Channel Reader</property>
+      <property name="responseValue">None</property>
+    </properties>
+    <transformer>
+      <steps>
+        <step>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Pull ids from inbound xml</name>
+          <script>var hl7_msh_id = msg['ZID']['ZID.1']['ZID.1.2'].toString()
+var message_control_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+
+channelMap.put('hl7_msh_id', hl7_msh_id)
+channelMap.put('message_control_id', message_control_id)</script>
+          <type>JavaScript</type>
+          <data class="map">
+            <entry>
+              <string>Script</string>
+              <string>var hl7_msh_id = msg['ZID']['ZID.1']['ZID.1.2'].toString()
+var message_control_id = msg['MSH']['MSH.10']['MSH.10.1'].toString()
+
+channelMap.put('hl7_msh_id', hl7_msh_id)
+channelMap.put('message_control_id', message_control_id)</string>
+            </entry>
+          </data>
+        </step>
+      </steps>
+      <inboundTemplate encoding="base64"/>
+      <outboundTemplate encoding="base64"/>
+      <inboundProtocol>XML</inboundProtocol>
+      <outboundProtocol>XML</outboundProtocol>
+      <inboundProperties>
+        <property name="stripNamespaces">false</property>
+      </inboundProperties>
+      <outboundProperties>
+        <property name="stripNamespaces">true</property>
+      </outboundProperties>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+    <transportName>Channel Reader</transportName>
+    <mode>SOURCE</mode>
+    <enabled>true</enabled>
+    <version>2.2.1.5861</version>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>hl7_visit database insert</name>
+      <properties>
+        <property name="DataType">JavaScript Writer</property>
+        <property name="host">sink</property>
+        <property name="script">var stmt = new java.lang.StringBuilder()
+stmt.append("INSERT INTO hl7_visit (hl7_msh_id, visit_id,")
+stmt.append("  patient_id, zip, country,")
+stmt.append("  admit_datetime, gender,")
+stmt.append("  dob, chief_complaint,")
+stmt.append("  patient_class, disposition,")
+stmt.append("  county, race,")
+stmt.append("  service_code, service_alt_id,")
+stmt.append("  admission_source, assigned_patient_location, state, discharge_datetime)")
+stmt.append("VALUES (" + parseInt(channelMap.get("hl7_msh_id")) + "," + channelMap.get("visit_id") + ",")
+stmt.append(channelMap.get("patient_id") + "," + channelMap.get("zipcode") + "," + channelMap.get("countrycode") + ",")
+stmt.append(channelMap.get("admit_datetime") + "," + channelMap.get("patient_gender") + ",")
+stmt.append(channelMap.get("patient_dob") + "," + channelMap.get("chief_complaint") + ",")
+stmt.append(channelMap.get("patient_class") + "," + channelMap.get("discharge_disposition") + ",")
+stmt.append(channelMap.get("county") + "," + channelMap.get("race_ethnicity") + ",")
+stmt.append(channelMap.get("service_code") + "," + channelMap.get("service_alt_id") + ",")
+stmt.append(channelMap.get("admission_source") + "," + channelMap.get("assigned_patient_location") + ",")
+stmt.append(channelMap.get("state") + "," + channelMap.get("discharge_datetime"))
+stmt.append(");")
+
+var dbConn = DatabaseConnectionFactory.createDatabaseConnection('org.logicalcobwebs.proxool.ProxoolDriver',
+    'proxool.example:org.postgresql.Driver:jdbc:postgresql://localhost:5432/warehouse','user','password');
+
+try {
+    dbConn.executeUpdate(stmt)
+} catch (e) {
+    logger.error("Exception caught on hl7_visit insert")
+    logger.error("Failed stmt: " + stmt)
+    logger.error("message_control_id: " + $('message_control_id'))
+    logger.error(e)
+} finally {
+    dbConn.close()
+}
+</property>
+      </properties>
+      <transformer>
+        <steps>
+          <step>
+            <sequenceNumber>0</sequenceNumber>
+            <name>visit_id</name>
+            <script>vi_parts = new Array()
+
+// MBDS and MU send visit ID in differing locations.
+// PID 18 only defined for MBDS ; MU defines PV1 19  
+vi_parts[0] = msg['PID']['PID.18']['PID.18.1'].toString() + "^^^"
+
+if (vi_parts[0] == "^^^") {
+  vi_parts[0] = msg['PV1']['PV1.19']['PV1.19.1'].toString() + "^^^"
+}
+
+// Only store if we have a value for Visit ID - assigning authority
+// alone is too ambigious
+if (vi_parts[0] != "^^^") {
+
+  // Retain only portions of the assigning authority (PID-18.4 or PV1-19.4)
+
+  aa_pid = msg['PID']['PID.18']['PID.18.4'].toString().split("&amp;")
+  aa_pv1 = msg['PV1']['PV1.19']['PV1.19.4'].toString().split("&amp;")
+  if (typeof aa_pid[1] != 'undefined') {
+    vi_parts.push(aa_pid[1])
+  } else if (typeof aa_pv1[1] != 'undefined') {
+    vi_parts.push(aa_pv1[1])
+  }
+
+  if (typeof aa_pid[2] != 'undefined') {
+    vi_parts.push(aa_pid[2])
+  }  else if (typeof aa_pv1[2] != 'undefined') {
+    vi_parts.push(aa_pv1[2])
+  }
+  channelMap.put("visit_id", "'"+vi_parts.join('&amp;')+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>vi_parts = new Array()
+
+// MBDS and MU send visit ID in differing locations.
+// PID 18 only defined for MBDS ; MU defines PV1 19  
+vi_parts[0] = msg['PID']['PID.18']['PID.18.1'].toString() + "^^^"
+
+if (vi_parts[0] == "^^^") {
+  vi_parts[0] = msg['PV1']['PV1.19']['PV1.19.1'].toString() + "^^^"
+}
+
+// Only store if we have a value for Visit ID - assigning authority
+// alone is too ambigious
+if (vi_parts[0] != "^^^") {
+
+  // Retain only portions of the assigning authority (PID-18.4 or PV1-19.4)
+
+  aa_pid = msg['PID']['PID.18']['PID.18.4'].toString().split("&amp;")
+  aa_pv1 = msg['PV1']['PV1.19']['PV1.19.4'].toString().split("&amp;")
+  if (typeof aa_pid[1] != 'undefined') {
+    vi_parts.push(aa_pid[1])
+  } else if (typeof aa_pv1[1] != 'undefined') {
+    vi_parts.push(aa_pv1[1])
+  }
+
+  if (typeof aa_pid[2] != 'undefined') {
+    vi_parts.push(aa_pid[2])
+  }  else if (typeof aa_pv1[2] != 'undefined') {
+    vi_parts.push(aa_pv1[2])
+  }
+  channelMap.put("visit_id", "'"+vi_parts.join('&amp;')+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>1</sequenceNumber>
+            <name>patient_id</name>
+            <script>pi_parts = new Array()
+pi_parts[0] = msg['PID']['PID.3']['PID.3.1'].toString() + "^^^"
+
+// Only store if we have a value for Patient ID - assigning authority
+// alone is too ambigious
+if (pi_parts[0] != "^^^") {
+
+  // Retain only portions of the assigning authority (PID-3.4)
+  // We want 3.4.2, 3.4.3, if defined.  Adjust for the 0 versus 1 index.
+
+  aa = msg['PID']['PID.3']['PID.3.4'].toString().split("&amp;")
+
+  if (typeof aa[1] != 'undefined') {
+    pi_parts.push(aa[1])
+  }
+  if (typeof aa[2] != 'undefined') {
+    pi_parts.push(aa[2])
+  }
+  channelMap.put("patient_id", "'"+pi_parts.join('&amp;')+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>pi_parts = new Array()
+pi_parts[0] = msg['PID']['PID.3']['PID.3.1'].toString() + "^^^"
+
+// Only store if we have a value for Patient ID - assigning authority
+// alone is too ambigious
+if (pi_parts[0] != "^^^") {
+
+  // Retain only portions of the assigning authority (PID-3.4)
+  // We want 3.4.2, 3.4.3, if defined.  Adjust for the 0 versus 1 index.
+
+  aa = msg['PID']['PID.3']['PID.3.4'].toString().split("&amp;")
+
+  if (typeof aa[1] != 'undefined') {
+    pi_parts.push(aa[1])
+  }
+  if (typeof aa[2] != 'undefined') {
+    pi_parts.push(aa[2])
+  }
+  channelMap.put("patient_id", "'"+pi_parts.join('&amp;')+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>2</sequenceNumber>
+            <name>zipcode</name>
+            <script>var z = msg['PID']['PID.11']['PID.11.5'].toString()
+if (z) {
+    channelMap.put("zipcode", "'"+z+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var z = msg['PID']['PID.11']['PID.11.5'].toString()
+if (z) {
+    channelMap.put("zipcode", "'"+z+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>3</sequenceNumber>
+            <name>admit_datetime</name>
+            <script>var v = quoteOrNull(datetimeForSQL(msg['PV1']['PV1.44']['PV1.44.1'].toString()))
+if (v) {
+    channelMap.put("admit_datetime", v)
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var v = quoteOrNull(datetimeForSQL(msg['PV1']['PV1.44']['PV1.44.1'].toString()))
+if (v) {
+    channelMap.put("admit_datetime", v)
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>4</sequenceNumber>
+            <name>patient_gender</name>
+            <script>var g = msg['PID']['PID.8']['PID.8.1'].toString()
+if (g) {
+    channelMap.put("patient_gender", "'"+g+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var g = msg['PID']['PID.8']['PID.8.1'].toString()
+if (g) {
+    channelMap.put("patient_gender", "'"+g+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>5</sequenceNumber>
+            <name>patiend_dob</name>
+            <script>var dob = msg['PID']['PID.7']['PID.7.1'].toString()
+if (dob) {
+    channelMap.put("patient_dob", "'"+dob+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var dob = msg['PID']['PID.7']['PID.7.1'].toString()
+if (dob) {
+    channelMap.put("patient_dob", "'"+dob+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>6</sequenceNumber>
+            <name>chief_complaint</name>
+            <script>var cc = msg['PV2']['PV2.3']['PV2.3.5'].toString()
+if (msg['PV2']['PV2.3']['PV2.3.2'].toString()) {
+  cc = msg['PV2']['PV2.3']['PV2.3.2'].toString()
+}
+ 
+if (cc) {
+    channelMap.put("chief_complaint", "'"+cc.replace(/'/g, "''")+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var cc = msg['PV2']['PV2.3']['PV2.3.5'].toString()
+if (msg['PV2']['PV2.3']['PV2.3.2'].toString()) {
+  cc = msg['PV2']['PV2.3']['PV2.3.2'].toString()
+}
+ 
+if (cc) {
+    channelMap.put("chief_complaint", "'"+cc.replace(/'/g, "''")+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>7</sequenceNumber>
+            <name>patient_class</name>
+            <script>var pc = msg['PV1']['PV1.2']['PV1.2.1'].toString()
+if (pc) {
+    channelMap.put("patient_class", "'"+pc+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var pc = msg['PV1']['PV1.2']['PV1.2.1'].toString()
+if (pc) {
+    channelMap.put("patient_class", "'"+pc+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>8</sequenceNumber>
+            <name>discharge_disposition</name>
+            <script>var dd = msg['PV1']['PV1.36']['PV1.36.1'].toString()
+if (dd == "NULL") {
+    logger.error("NULL disposition on message control ID:" + $('message_control_id'))
+} else {
+
+    var value = parseInt(dd)
+    if (value == "NaN") {
+        logger.error("Non numeric code disposition on message control ID:" + $('message_control_id'))
+    } else if (value &lt; 1 || value &gt; 99) {
+        logger.error("Disposition out of valid range (1:99) on message control ID:" + $('message_control_id'))
+    } else {
+        channelMap.put("discharge_disposition","'"+dd+"'")
+    }
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var dd = msg['PV1']['PV1.36']['PV1.36.1'].toString()
+if (dd == "NULL") {
+    logger.error("NULL disposition on message control ID:" + $('message_control_id'))
+} else {
+
+    var value = parseInt(dd)
+    if (value == "NaN") {
+        logger.error("Non numeric code disposition on message control ID:" + $('message_control_id'))
+    } else if (value &lt; 1 || value &gt; 99) {
+        logger.error("Disposition out of valid range (1:99) on message control ID:" + $('message_control_id'))
+    } else {
+        channelMap.put("discharge_disposition","'"+dd+"'")
+    }
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>9</sequenceNumber>
+            <name>country_code</name>
+            <script>var c = msg['PID']['PID.11']['PID.11.6'].toString()
+if (c) {
+    channelMap.put("countrycode", "'"+c+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var c = msg['PID']['PID.11']['PID.11.6'].toString()
+if (c) {
+    channelMap.put("countrycode", "'"+c+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>10</sequenceNumber>
+            <name>county</name>
+            <script>var c = msg['PID']['PID.12']['PID.12.1'].toString()
+if (msg['PID']['PID.11']['PID.11.9'].toString() != "") {
+  c = msg['PID']['PID.11']['PID.11.9'].toString()
+}
+if (c) {
+    channelMap.put("county", "'"+c+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var c = msg['PID']['PID.12']['PID.12.1'].toString()
+if (msg['PID']['PID.11']['PID.11.9'].toString() != "") {
+  c = msg['PID']['PID.11']['PID.11.9'].toString()
+}
+if (c) {
+    channelMap.put("county", "'"+c+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>11</sequenceNumber>
+            <name>race_ethnicity</name>
+            <script>var r = msg['PID']['PID.10']['PID.10.2'].toString()
+var e = msg['PID']['PID.22']['PID.22.2'].toString()
+
+if (r) {
+    channelMap.put("race_ethnicity", "'"+r+"'")
+}
+
+if (e) {
+    channelMap.put("race_ethnicity", "'"+e+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var r = msg['PID']['PID.10']['PID.10.2'].toString()
+var e = msg['PID']['PID.22']['PID.22.2'].toString()
+
+if (r) {
+    channelMap.put("race_ethnicity", "'"+r+"'")
+}
+
+if (e) {
+    channelMap.put("race_ethnicity", "'"+e+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>12</sequenceNumber>
+            <name>service_code</name>
+            <script>var v = msg['PV1']['PV1.10']['PV1.10.1'].toString()
+if (v) {
+    channelMap.put("service_code", "'"+v+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var v = msg['PV1']['PV1.10']['PV1.10.1'].toString()
+if (v) {
+    channelMap.put("service_code", "'"+v+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>13</sequenceNumber>
+            <name>service_alt_id</name>
+            <script>var v = msg['PV1']['PV1.10']['PV1.10.4'].toString()
+if (v) {
+    channelMap.put("service_alt_id", "'"+v+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var v = msg['PV1']['PV1.10']['PV1.10.4'].toString()
+if (v) {
+    channelMap.put("service_alt_id", "'"+v+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>14</sequenceNumber>
+            <name>admission_source</name>
+            <script>var v = msg['PV1']['PV1.14']['PV1.14.1'].toString()
+if (v) {
+    channelMap.put("admission_source", "'"+v+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var v = msg['PV1']['PV1.14']['PV1.14.1'].toString()
+if (v) {
+    channelMap.put("admission_source", "'"+v+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>15</sequenceNumber>
+            <name>assigned_patient_location</name>
+            <script>var v = msg['PV1']['PV1.3']['PV1.3.1'].toString()
+if (v) {
+    channelMap.put("assigned_patient_location", "'"+v+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var v = msg['PV1']['PV1.3']['PV1.3.1'].toString()
+if (v) {
+    channelMap.put("assigned_patient_location", "'"+v+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>16</sequenceNumber>
+            <name>state</name>
+            <script>var v = msg['PID']['PID.11']['PID.11.4'].toString()
+if (v) {
+    channelMap.put("state", "'"+v+"'")
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var v = msg['PID']['PID.11']['PID.11.4'].toString()
+if (v) {
+    channelMap.put("state", "'"+v+"'")
+}</string>
+              </entry>
+            </data>
+          </step>
+          <step>
+            <sequenceNumber>17</sequenceNumber>
+            <name>discharge_datetime</name>
+            <script>var v = quoteOrNull(datetimeForSQL(msg['PV1']['PV1.45']['PV1.45.1'].toString()))
+if (v) {
+    channelMap.put("discharge_datetime", v)
+}</script>
+            <type>JavaScript</type>
+            <data class="map">
+              <entry>
+                <string>Script</string>
+                <string>var v = quoteOrNull(datetimeForSQL(msg['PV1']['PV1.45']['PV1.45.1'].toString()))
+if (v) {
+    channelMap.put("discharge_datetime", v)
+}</string>
+              </entry>
+            </data>
+          </step>
+        </steps>
+        <inboundTemplate encoding="base64"/>
+        <outboundTemplate encoding="base64"/>
+        <inboundProtocol>XML</inboundProtocol>
+        <outboundProtocol>XML</outboundProtocol>
+        <inboundProperties>
+          <property name="stripNamespaces">true</property>
+        </inboundProperties>
+        <outboundProperties>
+          <property name="stripNamespaces">true</property>
+        </outboundProperties>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+      <transportName>JavaScript Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <version>2.2.1.5861</version>
+    </connector>
+  </destinationConnectors>
+  <properties>
+    <property name="clearGlobalChannelMap">true</property>
+    <property name="dont_store_filtered">false</property>
+    <property name="encryptData">false</property>
+    <property name="error_messages_only">false</property>
+    <property name="initialState">started</property>
+    <property name="max_message_age">3</property>
+    <property name="store_messages">true</property>
+    <property name="synchronous">true</property>
+    <property name="transactional">false</property>
+  </properties>
+  <preprocessingScript>// Modify the message variable below to pre process data
+return message;</preprocessingScript>
+  <postprocessingScript>// This script executes once after a message has been processed
+return;</postprocessingScript>
+  <deployScript>// This script executes once when the channel is deployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</deployScript>
+  <shutdownScript>// This script executes once when the channel is undeployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</shutdownScript>
+</channel>
