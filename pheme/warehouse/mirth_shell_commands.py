@@ -6,6 +6,7 @@ Project setup.py defines entry points for the functions below.
 import argparse
 import getpass
 import os
+import shutil
 import tempfile
 
 from pheme.util.config import Config
@@ -67,7 +68,7 @@ class MirthShell(object):
             script_file.write("status\n")
         if exports:
             codetemplates = os.path.join(os.path.dirname(exports[0][1]),
-                                          "codetemplates.xml")
+                                         "codetemplates.xml")
             script_file.write("exportcodetemplates %s\n" % codetemplates)
         script_file.flush()
         script_file.seek(0)
@@ -106,7 +107,7 @@ def transform_channels():
     """
     config = Config()
     ap = argparse.ArgumentParser(description=doc)
-    ap.add_argument("-d", "--database", dest="db", 
+    ap.add_argument("-d", "--database", dest="db",
                     default=config.get('warehouse', 'database'),
                     help="name of database (overrides "
                     "[warehouse]database)")
@@ -130,10 +131,10 @@ def transform_channels():
                     default=config.get('warehouse', 'error_dir'),
                     help="filesystem directory for channel errors "
                     "(overrides [warehouse]error_dir)")
-    ap.add_argument("source_directory", 
+    ap.add_argument("source_directory",
                     help="directory containing source channel "
                     "definition files")
-    ap.add_argument("target_directory", 
+    ap.add_argument("target_directory",
                     help="directory to write transformed channel "
                     "definition files")
     args = ap.parse_args()
@@ -146,13 +147,17 @@ def transform_channels():
     for c in CHANNELS:
         transformer.src = os.path.join(source_dir, '%s.xml' % c)
         transformer()
+    # no transformation on codetemplates at this time - but the
+    # importer expects the codetemplates.xml file to be in the same
+    # directory, so copy it over.
+    shutil.copy(os.path.join(source_dir, 'codetemplates.xml'), target_dir)
 
 
 def deploy_channels():
     """Entry point to deploy the channels to mirth on localhost"""
     ap = argparse.ArgumentParser(description="deploy known PHEME channels "
                                  "and code templates to Mirth Connect")
-    ap.add_argument("deploy_directory", 
+    ap.add_argument("deploy_directory",
                     help="directory containing channel definition files")
     args = ap.parse_args()
     path = os.path.realpath(args.deploy_directory)
@@ -168,7 +173,7 @@ def export_channels():
     """Entry point to export the PHEME channels to named directory"""
     ap = argparse.ArgumentParser(description="export known PHEME channels "
                                  "and code templates from Mirth Connect")
-    ap.add_argument("export_directory", 
+    ap.add_argument("export_directory",
                     help="directory for exported files")
     args = ap.parse_args()
     path = os.path.realpath(args.export_directory)
