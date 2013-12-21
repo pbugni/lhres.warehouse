@@ -59,14 +59,14 @@ not be the case on production systems) Values needed include::
     error_dir=/opt/pheme/error
     output_dir=/opt/pheme/processed
 
-For database creation to work, postgres must be configured to handle
+For database interaction to work, postgres must be configured to handle
 the user named above.  Substitute in the database, user and password
 values below to match the settings used in the pheme config file::
 
     $ sudo -u postgres createdb warehouse
     $ sudo -u postgres createuser system
     Shall the new role be a superuser? (y/n) n
-    Shall the new role be allowed to create databases? (y/n) n
+    Shall the new role be allowed to create databases? (y/n) y
     Shall the new role be allowed to create more new roles? (y/n) n
     $ sudo -u postgres psql
     postgres=# alter user system password 'password';
